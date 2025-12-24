@@ -3,11 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
 /**
- * POST /api/workout/abandon
- * Mark a workout session as ABANDONED (preserves data for history)
- * Use for: Sessions that completed warmup but user wants to discard
+ * DELETE /api/workout/delete
+ * Permanently delete a workout session
+ * Use for: Incomplete warmup sessions
  */
-export async function POST(request: Request) {
+export async function DELETE(request: Request) {
     try {
         const session = await auth();
         if (!session?.user?.id) {
@@ -28,18 +28,14 @@ export async function POST(request: Request) {
             );
         }
 
-        // Mark as ABANDONED (preserve data for history)
-        const abandoned = await prisma.workoutSession.update({
+        // DELETE the session completely
+        await prisma.workoutSession.delete({
             where: { id: sessionId },
-            data: {
-                status: "ABANDONED",
-                completedAt: new Date(),
-            },
         });
 
-        return NextResponse.json({ success: true, session: abandoned });
+        return NextResponse.json({ success: true, deleted: true });
     } catch (error) {
-        console.error("[API] Failed to abandon session:", error);
+        console.error("[API] Failed to delete session:", error);
         return NextResponse.json(
             { error: "Internal server error" },
             { status: 500 }

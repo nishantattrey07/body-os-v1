@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Dumbbell, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ExerciseLogger } from "./ExerciseLogger";
 import { ExitConfirmationModal } from "./ExitConfirmationModal";
@@ -29,14 +29,25 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
   const [selectedRoutine, setSelectedRoutine] = useState<any>(null);
   const [sessionData, setSessionData] = useState<any>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [isScrolled, setIsScrolled] = useState(false);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [workoutStartTime, setWorkoutStartTime] = useState<Date | null>(null);
+  const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
+  const [totalPauseSeconds, setTotalPauseSeconds] = useState(0);
   const [totalSetsCompleted, setTotalSetsCompleted] = useState(0);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [activeSession, setActiveSession] = useState<any>(null);
+  
+  // Pagination state
+  const [routines, setRoutines] = useState(initialRoutines);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
   const createSession = useCreateSession();
 
   // Check for active/paused session on mount
@@ -44,15 +55,16 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
     const checkActiveSession = async () => {
       try {
         const response = await fetch("/api/workout-session");
-        if (!response.ok) return;
-        
         const data = await response.json();
+        
+        // Show resume modal for any IN_PROGRESS session
+        // The abandon API will delete if warmup not completed
         if (data.session && data.session.status === "IN_PROGRESS") {
           setActiveSession(data.session);
           setShowResumeModal(true);
         }
       } catch (error) {
-        console.error("[WorkoutClient] Failed to check active session:", error);
+        console.error("Error checking active session:", error);
       }
     };
 
@@ -68,20 +80,83 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Filter routines
-  const filteredRoutines = initialRoutines.filter((routine) => {
-    const matchesSearch =
-      !search ||
-      routine.name.toLowerCase().includes(search.toLowerCase()) ||
-      routine.description?.toLowerCase().includes(search.toLowerCase());
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCursor(null); // Reset pagination when search changes
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-    const matchesFilter =
-      filter === "all" ||
-      (filter === "system" && routine.isSystem) ||
-      (filter === "user" && !routine.isSystem);
+  // Reload routines when search or filter changes
+  useEffect(() => {
+    if (stage === "select") {
+      loadRoutines(true);
+    }
+  }, [debouncedSearch, filter]);
 
-    return matchesSearch && matchesFilter;
-  });
+  // Load routines with pagination
+  const loadRoutines = async (resetList = false) => {
+    if (resetList) {
+      setLoading(true);
+      setCursor(null);
+    }
+
+    try {
+      const params = new URLSearchParams({
+        includeSystem: filter !== "user" ? "true" : "false",
+        includeUser: filter !== "system" ? "true" : "false",
+        limit: "20",
+      });
+
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (!resetList && cursor) params.set("cursor", cursor);
+
+      const response = await fetch(`/api/routines?${params}`);
+      if (!response.ok) throw new Error("Failed to load routines");
+
+      const { items, nextCursor, hasMore: more } = await response.json();
+
+      if (resetList) {
+        setRoutines(items);
+      } else {
+        setRoutines((prev) => [...prev, ...items]);
+      }
+
+      setCursor(nextCursor);
+      setHasMore(more);
+      setLoading(false);
+      setLoadingMore(false);
+    } catch (error) {
+      console.error("[WorkoutClient] Failed to load routines:", error);
+      setLoading(false);
+      setLoadingMore(false);
+      toast.error("Failed to load routines");
+    }
+  };
+
+  const loadMoreRoutines = async () => {
+    if (!hasMore || loadingMore || !cursor) return;
+    setLoadingMore(true);
+    await loadRoutines(false);
+  };
+
+  // Intersection Observer for infinite scroll
+  const observerRef = useRef<IntersectionObserver | undefined>(undefined);
+  const loadMoreRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (loadingMore) return;
+      if (observerRef.current) observerRef.current.disconnect();
+      observerRef.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          loadMoreRoutines();
+        }
+      });
+      if (node) observerRef.current.observe(node);
+    },
+    [loadingMore, hasMore, cursor]
+  );
 
   const handleSelectRoutine = (routine: any) => {
     setSelectedRoutine(routine);
@@ -117,12 +192,40 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
     setWorkoutStartTime(new Date()); // Start tracking workout duration
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
     if (stage === "select") {
       router.back();
     } else if (stage === "warmup") {
-      setStage("select");
+      // IMMEDIATELY clear any active session state to prevent stale ResumeModal
+      setActiveSession(null);
+      setShowResumeModal(false);
+      
+      // Delete incomplete warmup session
+      if (sessionData?.session?.id) {
+        try {
+          const response = await fetch(`/api/workout/delete`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId: sessionData.session.id }),
+          });
+          
+          if (!response.ok) {
+            throw new Error("Failed to delete session");
+          }
+          
+          const result = await response.json();
+          console.log("Session deleted:", result);
+        } catch (error) {
+          console.error("Failed to delete warmup session:", error);
+          toast.error("Failed to delete session");
+          return; // Don't proceed if delete failed
+        }
+      }
+      
+      // Clear state AFTER successful deletion
+      sessionManager.clearActiveSession();
       setSessionData(null);
+      setStage("select");
     } else if (stage === "exercise") {
       // Show exit confirmation modal
       setShowExitConfirm(true);
@@ -136,10 +239,12 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
   const handleExitPause = async () => {
     if (!sessionData?.session?.id) return;
 
+    setPauseStartTime(new Date());  // ← Track pause start
     setShowExitConfirm(false);
+    setStage("select");
+    setSessionData(null);
     toast.success("Workout paused - you can resume later");
     sessionManager.clearActiveSession();
-    router.push("/");
   };
 
   const handleExitAbandon = async () => {
@@ -147,7 +252,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
 
     try {
       const response = await fetch("/api/workout/abandon", {
-        method: "DELETE",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: sessionData.session.id }),
       });
@@ -166,10 +271,26 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
   };
   const handleResumeWorkout = () => {
     if (!activeSession) return;
-    setSessionData(activeSession);
     setShowResumeModal(false);
+    
+    // Calculate pause duration if paused
+    if (pauseStartTime) {
+      const pauseDuration = Math.floor(
+        (Date.now() - pauseStartTime.getTime()) / 1000
+      );
+      setTotalPauseSeconds((prev) => prev + pauseDuration);
+      setPauseStartTime(null);
+    }
+    
     const exercises = activeSession.SessionExercise || [];
     const incompleteIndex = exercises.findIndex((e: any) => !e.completedAt && !e.skipped);
+    
+    // Set sessionData with proper structure
+    setSessionData({
+      session: activeSession,
+      warmupData: null // Already completed if resuming
+    });
+    
     if (incompleteIndex >= 0) {
       setCurrentExerciseIndex(incompleteIndex);
       setStage("exercise");
@@ -182,19 +303,62 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
   const handleAbandonResume = async () => {
     if (!activeSession?.id) return;
     try {
-      const response = await fetch("/api/workout/abandon", {
-        method: "DELETE",
+      // Mark session as ABANDONED (preserves data)
+      await fetch("/api/workout/abandon", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: activeSession.id }),
       });
-      if (!response.ok) throw new Error("Failed to abandon");
       setShowResumeModal(false);
       setActiveSession(null);
       sessionManager.clearActiveSession();
-      toast.success("Workout abandoned");
+      toast.success("Workout discarded");
     } catch (error) {
-      console.error("[WorkoutClient] Failed to abandon:", error);
-      toast.error("Failed to abandon workout");
+      console.error("Failed to abandon workout:", error);
+      toast.error("Failed to discard workout");
+    }
+  };
+
+  const handleStartFresh = async () => {
+    if (!activeSession?.id) return;
+
+    try {
+      // 1. Abandon current session (marks as ABANDONED)
+      const response = await fetch("/api/workout/abandon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: activeSession.id }),
+      });
+
+      if (!response.ok) throw new Error("Failed to abandon session");
+
+      // 2. Extract routine from active session
+      const routineToRestart = activeSession.WorkoutRoutine;
+
+      if (!routineToRestart) {
+        // Fallback: if no routine, just discard
+        console.warn("[WorkoutClient] No routine found in session, discarding");
+        setShowResumeModal(false);
+        setActiveSession(null);
+        sessionManager.clearActiveSession();
+        toast.info("Workout discarded");
+        return;
+      }
+
+      // 3. Select the routine (triggers PreWorkoutModal)
+      setSelectedRoutine(routineToRestart);
+
+      // 4. Clean up state
+      setShowResumeModal(false);
+      setActiveSession(null);
+      sessionManager.clearActiveSession();
+
+      toast.success("Starting fresh with same routine");
+
+      // PreWorkoutModal will open automatically because selectedRoutine !== null
+    } catch (error) {
+      console.error("[WorkoutClient] Failed to start fresh:", error);
+      toast.error("Failed to restart workout");
     }
   };
 
@@ -213,10 +377,11 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
   const handlePostWorkoutSubmit = async (data: PostWorkoutData) => {
     if (!sessionData?.session?.id) return;
 
-    // Calculate duration in minutes
-    const duration = workoutStartTime
-      ? Math.floor((Date.now() - workoutStartTime.getTime()) / 1000 / 60)
+    // Calculate timing metrics
+    const totalDuration = workoutStartTime
+      ? Math.floor((Date.now() - workoutStartTime.getTime()) / 1000)
       : 0;
+    const activeDuration = totalDuration - totalPauseSeconds;
 
     try {
       const response = await fetch("/api/workout/complete", {
@@ -225,6 +390,9 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
         body: JSON.stringify({
           sessionId: sessionData.session.id,
           ...data,
+          totalDuration,       // ← Total time including pauses
+          activeDuration,      // ← Active training time
+          pauseDuration: totalPauseSeconds,  // ← Time spent paused
         }),
       });
 
@@ -232,6 +400,12 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
 
       toast.success("Workout completed!");
       sessionManager.clearActiveSession();
+      
+      // Reset timing state
+      setWorkoutStartTime(null);
+      setTotalPauseSeconds(0);
+      setPauseStartTime(null);
+      
       router.push("/");
     } catch (error) {
       console.error("[WorkoutClient] Failed to complete session:", error);
@@ -355,7 +529,25 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
 
           {/* Routines List */}
           <div className="px-6 pt-4">
-            {filteredRoutines.length === 0 ? (
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="w-full p-6 rounded-3xl bg-white border border-zinc-100 animate-pulse"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-full bg-zinc-100" />
+                      <div className="flex-1">
+                        <div className="h-6 w-32 bg-zinc-200 rounded mb-2" />
+                        <div className="h-4 w-48 bg-zinc-100 rounded mb-1" />
+                        <div className="h-3 w-20 bg-zinc-100 rounded" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : routines.length === 0 ? (
               <div className="text-center py-12">
                 <Dumbbell size={48} className="mx-auto text-zinc-300 mb-4" />
                 <p className="text-zinc-500 mb-4">
@@ -364,7 +556,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredRoutines.map((routine, index) => (
+                {routines.map((routine: any, index: number) => (
                   <motion.button
                     key={routine.id}
                     onClick={() => handleSelectRoutine(routine)}
@@ -402,6 +594,22 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
                     </div>
                   </motion.button>
                 ))}
+                {/* Load More Trigger */}
+                {hasMore && (
+                  <div ref={loadMoreRef} className="py-8 text-center">
+                    {loadingMore && (
+                      <div className="flex justify-center gap-2">
+                        {[1, 2, 3].map((i) => (
+                          <div
+                            key={i}
+                            className="w-2 h-2 bg-orange-400 rounded-full animate-bounce"
+                            style={{ animationDelay: `${i * 0.1}s` }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -500,6 +708,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
           <ResumeModal
             session={activeSession}
             onResume={handleResumeWorkout}
+            onStartFresh={handleStartFresh}
             onAbandon={handleAbandonResume}
           />
         )}
@@ -511,7 +720,6 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
           <ExitConfirmationModal
             onContinue={handleExitContinue}
             onPause={handleExitPause}
-            onAbandon={handleExitAbandon}
           />
         )}
       </AnimatePresence>

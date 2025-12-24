@@ -1,18 +1,16 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle, CheckCircle, Pause, X } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 interface ExitConfirmationModalProps {
   onContinue: () => void;
   onPause: () => void;
-  onAbandon: () => void;
 }
 
 export function ExitConfirmationModal({
   onContinue,
   onPause,
-  onAbandon,
 }: ExitConfirmationModalProps) {
   return (
     <motion.div
@@ -25,52 +23,36 @@ export function ExitConfirmationModal({
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden"
+        className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden p-8 text-center"
       >
-        {/* Header */}
-        <div className="p-8 text-center border-b border-zinc-100">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-orange-100 flex items-center justify-center shadow-inner">
-              <AlertTriangle className="text-orange-500" size={28} />
-            </div>
+        <div className="flex justify-center mb-6">
+          <div className="h-20 w-20 rounded-full bg-orange-100 flex items-center justify-center mb-2 shadow-inner">
+            <AlertTriangle className="text-orange-500" size={32} />
           </div>
-
-          <h2 className="text-3xl font-bold uppercase tracking-tight font-heading text-zinc-800 mb-2">
-            Exit Workout?
-          </h2>
-
-          <p className="text-zinc-500 font-medium leading-relaxed px-2">
-            Your progress is saved. Choose how to proceed.
-          </p>
         </div>
 
-        {/* Actions */}
-        <div className="p-6 space-y-3">
-          {/* Continue */}
-          <button
-            onClick={onContinue}
-            className="w-full py-5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-green-500/30 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
-          >
-            <CheckCircle size={20} />
-            Continue Workout
-          </button>
+        <h2 className="text-4xl font-bold uppercase tracking-tighter font-heading text-zinc-800 mb-3">
+          Pause Session?
+        </h2>
 
-          {/* Pause & Save */}
+        <p className="text-zinc-500 font-medium leading-relaxed mb-8 px-2 font-sans">
+          Your progress is automatically saved. You can resume this workout exactly where you left off later.
+        </p>
+
+        <div className="space-y-3">
+          <motion.button
+            onClick={onContinue}
+            whileTap={{ scale: 0.98 }}
+            className="w-full text-xl py-5 shadow-lg shadow-zinc-200 bg-zinc-800 hover:bg-zinc-900 text-white border-none font-bold uppercase tracking-tight rounded-2xl transition-colors"
+          >
+            KEEP TRAINING
+          </motion.button>
+
           <button
             onClick={onPause}
-            className="w-full py-4 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-2xl font-bold transition-colors flex items-center justify-center gap-2"
+            className="w-full py-4 text-zinc-400 font-bold uppercase tracking-wider text-sm hover:text-red-500 transition-colors font-heading cursor-pointer"
           >
-            <Pause size={18} />
-            Pause & Save
-          </button>
-
-          {/* Abandon */}
-          <button
-            onClick={onAbandon}
-            className="w-full py-3 text-red-500 font-semibold uppercase tracking-wider text-sm hover:text-red-600 transition-colors flex items-center justify-center gap-2"
-          >
-            <X size={16} />
-            Abandon Workout
+            Exit to Menu
           </button>
         </div>
       </motion.div>

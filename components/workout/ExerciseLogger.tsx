@@ -12,7 +12,7 @@ import {
     Plus,
     Timer,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { TimerModal } from "./TimerModal";
 
@@ -48,10 +48,39 @@ export function ExerciseLogger({
   const [showTimer, setShowTimer] = useState(false);
   const totalSets = exercise.defaultSets || 3;
 
+  // Use ref for synchronous lock to prevent race conditions
+  const isLoggingRef = useRef(false);
+
   const logSetMutation = useLogSet();
 
+  // Reset state when exercise changes
+  useEffect(() => {
+    setCurrentSet(1);
+    setValue(isTimeBased ? (exercise.defaultDuration || 60) : (exercise.defaultReps || 10));
+    setWeight(exercise.defaultWeight || 0);
+    setRPE(7);
+    setPainLevel(0);
+    setSelectedBlockerId(null);
+    setRestTimer(null);
+    setRestTimerMax(0);
+    setRestStartTime(null);
+    isLoggingRef.current = false;
+  }, [exercise.id, sessionExerciseId, isTimeBased]);
+
   const handleLogSet = async () => {
-    if (logging) return;
+    
+    // Guard clause
+    if (!sessionExerciseId) {
+      console.warn("[ExerciseLogger] No sessionExerciseId, skipping log");
+      return;
+    }
+
+    // Synchronous lock check - prevents duplicates instantly
+    if (isLoggingRef.current) {
+      console.log("[ExerciseLogger] Duplicate click blocked");
+      return;
+    }
+    isLoggingRef.current = true;
 
     // Calculate actual rest taken
     let actualRestTaken: number | undefined;
@@ -66,43 +95,31 @@ export function ExerciseLogger({
     const isLastSet = currentSet >= totalSets;
 
     // CRASH-PROOF: Save to localStorage FIRST
-    if (sessionExerciseId) {
-      const setData = {
-        sessionExerciseId,
-        setNumber: previousSet,
-        targetReps: isTimeBased ? undefined : exercise.defaultReps || 10,
-        actualReps: isTimeBased ? undefined : value,
-        targetDuration: isTimeBased ? exercise.defaultDuration || 60 : undefined,
-        actualSeconds: isTimeBased ? value : undefined,
-        weight,
-        rpe,
-        painLevel,
-        restTaken: actualRestTaken,
-        aggravatedBlockerId: selectedBlockerId || undefined,
-      };
+    const setData = {
+      sessionExerciseId,  // Now guaranteed to be string
+      setNumber: previousSet,
+      targetReps: isTimeBased ? undefined : exercise.defaultReps || 10,
+      actualReps: isTimeBased ? undefined : value,
+      targetDuration: isTimeBased ? exercise.defaultDuration || 60 : undefined,
+      actualSeconds: isTimeBased ? value : undefined,
+      weight,
+      rpe,
+      painLevel,
+      restTaken: actualRestTaken,
+      aggravatedBlockerId: selectedBlockerId || undefined,
+    };
 
-      // Save to localStorage
-      const pendingSets = JSON.parse(
-        localStorage.getItem("pendingSets") || "[]"
-      );
-      pendingSets.push({ ...setData, timestamp: Date.now() });
-      localStorage.setItem("pendingSets", JSON.stringify(pendingSets));
+    // Save to localStorage with unique ID
+    const pendingSets = JSON.parse(
+      localStorage.getItem("pendingSets") || "[]"
+    );
+    const pendingSetId = `${sessionExerciseId}-${previousSet}-${Date.now()}`;
+    pendingSets.push({ id: pendingSetId, ...setData, timestamp: Date.now() });
+    localStorage.setItem("pendingSets", JSON.stringify(pendingSets));
 
-      // Log mutation (fire and forget with error handling)
-      logSetMutation.mutate(setData, {
-        onError: (error) => {
-          console.error("[ExerciseLogger] Failed to log set:", error);
-          toast.error("Set saved locally - will sync when online");
-        },
-        onSuccess: () => {
-          // Remove from pending sets
-          const updated = pendingSets.filter(
-            (s: any) => s.setNumber !== previousSet
-          );
-          localStorage.setItem("pendingSets", JSON.stringify(updated));
-        },
-      });
-    }
+    // ✅ DATA IS SAFE - NOW MOVE ON IMMEDIATELY
+    // Unlock and update UI BEFORE server call
+    isLoggingRef.current = false;
 
     // OPTIMISTIC UPDATE: Update UI immediately
     if (!isLastSet) {
@@ -113,7 +130,7 @@ export function ExerciseLogger({
       if (restTime > 0) {
         setRestTimerMax(restTime);
         setRestTimer(restTime);
-        setRestStartTime(new Date());
+        setRestStartTime(new Date());  // Track rest start for next set
         const timer = setInterval(() => {
           setRestTimer((prev) => {
             if (prev === null || prev <= 1) {
@@ -125,14 +142,25 @@ export function ExerciseLogger({
         }, 1000);
       }
     } else {
-      // For last set, show brief completion state
-      setLogging(true);
-      setTimeout(() => {
-        onComplete(totalSets);
-      }, 800);
+      // For last set, complete immediately
+      onComplete(totalSets);
     }
 
     toast.success(`Set ${previousSet} logged!`);
+
+    // BACKGROUND SYNC: Fire and forget
+    logSetMutation.mutate(setData, {
+      onSuccess: () => {
+        // Remove from pending sets after successful sync
+        const updated = JSON.parse(localStorage.getItem("pendingSets") || "[]")
+          .filter((s: any) => s.id !== pendingSetId);
+        localStorage.setItem("pendingSets", JSON.stringify(updated));
+      },
+      onError: (error) => {
+        console.error("[ExerciseLogger] ❌ Sync failed, will retry:", error);
+        // Data stays in localStorage for retry by sync queue
+      },
+    });
   };
 
   const handleSkipRest = () => {

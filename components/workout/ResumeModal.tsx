@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Clock, Pause, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronRight, Clock, Pause, RotateCcw, Trash2 } from "lucide-react";
 
 interface ResumeModalProps {
   session: {
@@ -15,10 +15,11 @@ interface ResumeModalProps {
     }>;
   };
   onResume: () => void;
+  onStartFresh: () => void;
   onAbandon: () => void;
 }
 
-export function ResumeModal({ session, onResume, onAbandon }: ResumeModalProps) {
+export function ResumeModal({ session, onResume, onStartFresh, onAbandon }: ResumeModalProps) {
   const completedCount = session.SessionExercise.filter(
     (e) => e.completedAt || e.skipped
   ).length;
@@ -58,6 +59,7 @@ export function ResumeModal({ session, onResume, onAbandon }: ResumeModalProps) 
       >
         {/* Header */}
         <div className="p-6 pb-5 text-center border-b border-zinc-100">
+          {/* Pause Icon */}
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -102,41 +104,59 @@ export function ResumeModal({ session, onResume, onAbandon }: ResumeModalProps) 
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${progressPercent}%` }}
-                className="h-full bg-gradient-to-r from-orange-400 to-orange-500"
+                transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
+                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"
               />
             </div>
           </div>
 
-          {/* Current Exercise */}
+          {/* Continue With */}
           {currentExercise && (
-            <div className="p-3 bg-orange-50 rounded-xl border border-orange-100">
-              <p className="text-xs text-orange-600 font-semibold uppercase tracking-wide mb-0.5">
-                Up Next
-              </p>
-              <p className="text-sm font-bold text-orange-900">
-                {currentExercise.Exercise.name}
-              </p>
+            <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-0.5">
+                  Continue with
+                </p>
+                <p className="text-sm font-semibold text-zinc-900">
+                  {currentExercise.Exercise.name}
+                </p>
+              </div>
+              <ChevronRight size={20} className="text-zinc-300" />
             </div>
           )}
         </div>
 
         {/* Actions */}
-        <div className="p-6 pt-3 space-y-3">
-          <button
+        <div className="p-5 pt-0 space-y-3">
+          {/* Primary */}
+          <motion.button
             onClick={onResume}
-            className="w-full py-5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-green-500/30 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+            whileTap={{ scale: 0.98 }}
+            className="w-full h-12 rounded-xl bg-zinc-900 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors"
           >
-            Resume Workout
-            <ArrowRight size={20} />
-          </button>
+            Resume
+            <ArrowRight size={16} />
+          </motion.button>
 
-          <button
-            onClick={onAbandon}
-            className="w-full py-3 text-red-500 font-semibold uppercase tracking-wider text-sm hover:text-red-600 transition-colors flex items-center justify-center gap-2"
-          >
-            <Trash2 size={16} />
-            Abandon & Start Fresh
-          </button>
+          {/* Secondary */}
+          <div className="flex gap-2">
+            <motion.button
+              onClick={onStartFresh}
+              whileTap={{ scale: 0.97 }}
+              className="flex-1 h-11 rounded-xl bg-zinc-100 text-zinc-600 font-medium text-sm flex items-center justify-center gap-1.5 hover:bg-zinc-200 transition-colors"
+            >
+              <RotateCcw size={14} />
+              Restart
+            </motion.button>
+            <motion.button
+              onClick={onAbandon}
+              whileTap={{ scale: 0.97 }}
+              className="flex-1 h-11 rounded-xl bg-red-50 text-red-500 font-medium text-sm flex items-center justify-center gap-1.5 hover:bg-red-100 hover:text-red-600 transition-colors"
+            >
+              <Trash2 size={14} />
+              Discard
+            </motion.button>
+          </div>
         </div>
       </motion.div>
     </motion.div>
