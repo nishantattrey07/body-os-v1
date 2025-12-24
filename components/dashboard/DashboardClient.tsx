@@ -140,8 +140,20 @@ export function DashboardClient({ initialDailyLog, initialSettings }: DashboardC
             </div>
           </div>
           
-          {/* Status Row */}
-          <div className="flex items-center justify-end mt-4">
+          {/* Recalibrate Button + Status Row */}
+          <div className="flex items-center justify-between mt-4">
+            <motion.button
+              onClick={() => {
+                // TODO: Trigger morning check-in modal
+                alert('Morning check-in coming soon!');
+              }}
+              whileHover={{ x: 5 }}
+              className="text-xs text-orange-500/70 font-semibold tracking-widest uppercase hover:text-orange-600 transition-colors flex items-center gap-1.5"
+            >
+              <span className="text-base">↻</span>
+              Recalibrate
+            </motion.button>
+            
             <StatusIndicator 
               status={smartStatus.status} 
               label={smartStatus.label}
@@ -151,26 +163,37 @@ export function DashboardClient({ initialDailyLog, initialSettings }: DashboardC
 
         {/* Core Vitals */}
         <div className="flex-1 flex flex-col items-center justify-center w-full z-10">
-          <MacroGauge 
-            data={{
-              protein: { 
-                current: dailyLog?.proteinTotal || 0, 
-                target: settings?.proteinTarget ?? 140
-              },
-              carbs: { 
-                current: dailyLog?.carbsTotal || 0, 
-                target: settings?.carbsTarget ?? 200
-              },
-              fats: { 
-                current: dailyLog?.fatsTotal || 0, 
-                target: settings?.fatsTarget ?? 60
-              },
-              calories: { 
-                current: dailyLog?.caloriesTotal || 0, 
-                target: settings?.caloriesTarget ?? 2000
-              },
-            }}
-          />
+          {/* Macro Gauge with subtle orange glow */}
+          <div className="relative">
+            {/* Subtle orange radial gradient background */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-80 h-80 rounded-full bg-gradient-radial from-orange-100/40 via-orange-50/20 to-transparent" />
+            </div>
+            
+            {/* Gauge on top */}
+            <div className="relative z-10">
+              <MacroGauge 
+                data={{
+                  protein: { 
+                    current: dailyLog?.proteinTotal || 0, 
+                    target: settings?.proteinTarget ?? 140
+                  },
+                  carbs: { 
+                    current: dailyLog?.carbsTotal || 0, 
+                    target: settings?.carbsTarget ?? 200
+                  },
+                  fats: { 
+                    current: dailyLog?.fatsTotal || 0, 
+                    target: settings?.fatsTarget ?? 60
+                  },
+                  calories: { 
+                    current: dailyLog?.caloriesTotal || 0, 
+                    target: settings?.caloriesTarget ?? 2000
+                  },
+                }}
+              />
+            </div>
+          </div>
           
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 gap-4 mt-8 w-full px-4">

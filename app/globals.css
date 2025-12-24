@@ -142,7 +142,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+/* Radial gradient utility for gauge glow */
+.bg-gradient-radial {
+  background-image: radial-gradient(circle, var(--tw-gradient-stops));
 }
 
 /* Custom gradient backgrounds (used throughout app) */
