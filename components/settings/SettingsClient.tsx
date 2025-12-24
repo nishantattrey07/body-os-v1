@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Check, Droplets, Flame, LogOut, Utensils } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface SettingsClientProps {
   initialSettings: any;
@@ -33,11 +33,22 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
 
   const isDirty = JSON.stringify(targets) !== JSON.stringify(initialTargets);
 
+  // Log client mount time
+  useEffect(() => {
+    console.log('🎨 [Settings Client] Component mounted at:', new Date().toISOString());
+    console.log('✅ [Settings Client] Hydrated with initial data');
+  }, []);
+
   const handleSave = async () => {
     if (!isDirty) return;
+    
+    console.log('🔘 [Settings] Save button clicked at:', new Date().toISOString());
+    console.time('⏱️ [Settings] Total Save Time');
+    
     updateSettings.mutate(targets, {
       onSuccess: () => {
         setInitialTargets(targets); // Reset dirty state after save
+        console.timeEnd('⏱️ [Settings] Total Save Time');
       },
     });
   };

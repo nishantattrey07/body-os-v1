@@ -46,13 +46,18 @@ export async function GET() {
  */
 export async function POST(request: Request) {
     try {
+        const requestStart = performance.now();
+        console.log('📥 [API] Settings POST received at:', new Date().toISOString());
+
         const session = await auth();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         const data = await request.json();
+        console.log('📝 [API] Updating settings for user:', session.user.id);
 
+        const dbStart = performance.now();
         const settings = await prisma.userSettings.update({
             where: { userId: session.user.id },
             data: {
@@ -65,6 +70,11 @@ export async function POST(request: Request) {
                 dayCutoffMinute: data.dayCutoffMinute,
             },
         });
+        const dbEnd = performance.now();
+
+        const requestEnd = performance.now();
+        console.log(`✅ [API] Database update took: ${Math.round(dbEnd - dbStart)}ms`);
+        console.log(`✅ [API] Total request time: ${Math.round(requestEnd - requestStart)}ms`);
 
         return NextResponse.json(settings);
     } catch (error) {
