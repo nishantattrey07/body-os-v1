@@ -2,13 +2,15 @@
 
 import { ActionCard } from "@/components/dashboard/ActionCard";
 import { MacroGauge } from "@/components/dashboard/MacroGauge";
+import { MorningCheckIn } from "@/components/dashboard/MorningCheckIn";
 import { StatusIndicator } from "@/components/dashboard/StatusIndicator";
 import { WaterTracker } from "@/components/dashboard/WaterTracker";
 import { useDailyLog } from "@/lib/queries/useDailyLog";
 import { useUserSettings } from "@/lib/queries/useUserSettings";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Dumbbell, Settings, TrendingUp, Utensils } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
 interface DashboardClientProps {
   initialDailyLog: any;
@@ -28,6 +30,22 @@ export function DashboardClient({ initialDailyLog, initialSettings }: DashboardC
   // React Query hooks - hydrate with server data
   const { data: dailyLog, isLoading: logLoading } = useDailyLog(initialDailyLog);
   const { data: settings, isLoading: settingsLoading } = useUserSettings(initialSettings);
+
+  // Morning check-in modal state
+  const [showCheckIn, setShowCheckIn] = useState(false);
+
+  // Check if user needs to check in (no weight or sleep)
+  const needsCheckIn = useMemo(() => {
+    if (!dailyLog) return false;
+    return !dailyLog.weight || !dailyLog.sleepHours;
+  }, [dailyLog]);
+
+  // Show modal on mount if needed
+  useEffect(() => {
+    if (needsCheckIn && !logLoading) {
+      setShowCheckIn(true);
+    }
+  }, [needsCheckIn, logLoading]);
 
   // Loading state - only on first load without cached data
   if ((logLoading && !initialDailyLog) || (settingsLoading && !initialSettings)) {
@@ -143,10 +161,7 @@ export function DashboardClient({ initialDailyLog, initialSettings }: DashboardC
           {/* Recalibrate Button + Status Row */}
           <div className="flex items-center justify-between mt-4">
             <motion.button
-              onClick={() => {
-                // TODO: Trigger morning check-in modal
-                alert('Morning check-in coming soon!');
-              }}
+              onClick={() => setShowCheckIn(true)}
               whileHover={{ x: 5 }}
               className="text-xs text-orange-500/70 font-semibold tracking-widest uppercase hover:text-orange-600 transition-colors flex items-center gap-1.5"
             >
@@ -276,6 +291,16 @@ export function DashboardClient({ initialDailyLog, initialSettings }: DashboardC
           />
         </div>
       </motion.div>
+
+      {/* Morning Check-In Modal */}
+      <AnimatePresence>
+        {showCheckIn && (
+          <MorningCheckIn
+            onComplete={() => setShowCheckIn(false)}
+            onBack={() => setShowCheckIn(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

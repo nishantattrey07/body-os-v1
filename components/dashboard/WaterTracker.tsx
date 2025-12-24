@@ -65,8 +65,7 @@ export function WaterTracker() {
       <motion.button
         onClick={handleTap}
         whileTap={{ scale: 0.95 }}
-        disabled={logWaterMutation.isPending}
-        className="w-full bg-white text-blue-600 rounded-2xl py-4 font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors shadow-sm font-[var(--font-teko)] tracking-wide uppercase disabled:opacity-50"
+        className="w-full bg-white text-blue-600 rounded-2xl py-4 font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors shadow-sm font-[var(--font-teko)] tracking-wide uppercase"
       >
         <Plus className="w-5 h-5" />
         Add {PER_TAP}ml
