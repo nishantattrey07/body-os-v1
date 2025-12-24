@@ -339,6 +339,9 @@ CREATE TABLE "WorkoutSession" (
 );
 
 -- CreateIndex
+CREATE INDEX "Account_userId_idx" ON "Account"("userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
 
 -- CreateIndex
@@ -348,10 +351,16 @@ CREATE INDEX "BlockerEntry_blockerId_date_idx" ON "BlockerEntry"("blockerId", "d
 CREATE INDEX "DailyLog_date_idx" ON "DailyLog"("date");
 
 -- CreateIndex
+CREATE INDEX "DailyLog_userId_idx" ON "DailyLog"("userId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "DailyLog_userId_date_key" ON "DailyLog"("userId", "date");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DailyReview_dailyLogId_key" ON "DailyReview"("dailyLogId");
+
+-- CreateIndex
+CREATE INDEX "DeadHangLog_userId_date_idx" ON "DeadHangLog"("userId", "date");
 
 -- CreateIndex
 CREATE INDEX "Exercise_category_idx" ON "Exercise"("category");
@@ -366,10 +375,19 @@ CREATE INDEX "Exercise_userId_name_idx" ON "Exercise"("userId", "name");
 CREATE UNIQUE INDEX "Exercise_name_userId_key" ON "Exercise"("name", "userId");
 
 -- CreateIndex
+CREATE INDEX "ExerciseMuscle_exerciseId_idx" ON "ExerciseMuscle"("exerciseId");
+
+-- CreateIndex
+CREATE INDEX "ExerciseMuscle_muscleGroupId_idx" ON "ExerciseMuscle"("muscleGroupId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "ExerciseMuscle_exerciseId_muscleGroupId_key" ON "ExerciseMuscle"("exerciseId", "muscleGroupId");
 
 -- CreateIndex
 CREATE INDEX "InventoryItem_isActive_idx" ON "InventoryItem"("isActive");
+
+-- CreateIndex
+CREATE INDEX "InventoryItem_userId_idx" ON "InventoryItem"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "InventoryItem_name_userId_key" ON "InventoryItem"("name", "userId");
@@ -381,10 +399,25 @@ CREATE UNIQUE INDEX "MuscleGroup_name_key" ON "MuscleGroup"("name");
 CREATE INDEX "NutritionLog_userId_timestamp_idx" ON "NutritionLog"("userId", "timestamp");
 
 -- CreateIndex
+CREATE INDEX "NutritionLog_inventoryItemId_idx" ON "NutritionLog"("inventoryItemId");
+
+-- CreateIndex
 CREATE INDEX "PhysicalBlocker_userId_status_idx" ON "PhysicalBlocker"("userId", "status");
 
 -- CreateIndex
+CREATE INDEX "ProgressPhoto_userId_date_idx" ON "ProgressPhoto"("userId", "date");
+
+-- CreateIndex
+CREATE INDEX "RoutineExercise_routineId_idx" ON "RoutineExercise"("routineId");
+
+-- CreateIndex
+CREATE INDEX "RoutineExercise_exerciseId_idx" ON "RoutineExercise"("exerciseId");
+
+-- CreateIndex
 CREATE INDEX "SessionExercise_sessionId_idx" ON "SessionExercise"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "SessionExercise_exerciseId_idx" ON "SessionExercise"("exerciseId");
 
 -- CreateIndex
 CREATE INDEX "SetLog_completedAt_idx" ON "SetLog"("completedAt");
@@ -396,6 +429,9 @@ CREATE INDEX "SetLog_sessionExerciseId_idx" ON "SetLog"("sessionExerciseId");
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
+CREATE INDEX "User_email_idx" ON "User"("email");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "UserSettings_userId_key" ON "UserSettings"("userId");
 
 -- CreateIndex
@@ -403,6 +439,9 @@ CREATE UNIQUE INDEX "WarmupChecklist_name_key" ON "WarmupChecklist"("name");
 
 -- CreateIndex
 CREATE INDEX "WarmupLog_workoutSessionId_idx" ON "WarmupLog"("workoutSessionId");
+
+-- CreateIndex
+CREATE INDEX "WarmupLog_userId_idx" ON "WarmupLog"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WarmupLog_userId_warmupChecklistId_workoutSessionId_key" ON "WarmupLog"("userId", "warmupChecklistId", "workoutSessionId");
@@ -430,6 +469,9 @@ CREATE INDEX "WorkoutSession_userId_date_idx" ON "WorkoutSession"("userId", "dat
 
 -- CreateIndex
 CREATE INDEX "WorkoutSession_userId_year_month_idx" ON "WorkoutSession"("userId", "year", "month");
+
+-- CreateIndex
+CREATE INDEX "WorkoutSession_routineId_idx" ON "WorkoutSession"("routineId");
 
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

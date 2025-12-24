@@ -1,52 +1,63 @@
-"use client";
+import { DashboardClient } from "@/components/dashboard/DashboardClient";
+import { auth } from "@/lib/auth";
+import { getDailyLogKey } from "@/lib/date-utils";
+import { DEFAULTS } from "@/lib/defaults";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
-import { signOut, useSession } from "next-auth/react";
-
-export default function Home() {
-  const { data: session, status } = useSession();
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-foreground">Loading...</div>
-      </div>
-    );
+/**
+ * Dashboard Page - Server Component
+ * 
+ * Pre-fetches data server-side for instant initial render
+ * Client component hydrates with this data and manages updates
+ */
+export default async function DashboardPage() {
+  const session = await auth();
+  
+  if (!session?.user?.id) {
+    redirect("/login");
   }
 
+  // Fetch user settings
+  let settings = await prisma.userSettings.findUnique({
+    where: { userId: session.user.id },
+  });
+
+  // Create defaults if needed
+  if (!settings) {
+    settings = await prisma.userSettings.create({
+      data: {
+        userId: session.user.id,
+        ...DEFAULTS,
+      },
+    });
+  }
+
+  // Get today's date with user's cutoff
+  const today = getDailyLogKey(
+    undefined,
+    settings.dayCutoffHour ?? DEFAULTS.dayCutoffHour,
+    settings.dayCutoffMinute ?? DEFAULTS.dayCutoffMinute
+  );
+
+  // Fetch today's daily log
+  const dailyLog = await prisma.dailyLog.findUnique({
+    where: {
+      userId_date: {
+        userId: session.user.id,
+        date: today,
+      },
+    },
+    include: {
+      DailyReview: true,
+    },
+  });
+
+  // Pass initial data to client component
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="text-center space-y-6">
-        <h1 className="text-6xl font-bold text-primary font-[var(--font-teko)] uppercase tracking-wide">
-          BODY OS
-        </h1>
-        
-        <div className="bg-card rounded-2xl shadow-lg p-8 border border-foreground/5 max-w-md">
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-foreground/60 font-[var(--font-inter)] mb-2">
-                Welcome back!
-              </p>
-              <p className="text-xl font-bold font-[var(--font-teko)] uppercase">
-                {session?.user?.name || "User"}
-              </p>
-              <p className="text-sm text-foreground/60 font-[var(--font-inter)]">
-                {session?.user?.email}
-              </p>
-            </div>
-
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-3 px-6 rounded-xl transition-all duration-200 font-[var(--font-inter)]"
-            >
-              Sign Out
-            </button>
-
-            <p className="text-xs text-foreground/40 font-[var(--font-inter)]">
-              Click "Sign Out" to test the login flow
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <DashboardClient 
+      initialDailyLog={dailyLog}
+      initialSettings={settings}
+    />
   );
 }

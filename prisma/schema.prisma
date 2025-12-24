@@ -8,7 +8,7 @@ datasource db {
 }
 
 model Account {
-  id                String  @id
+  id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
@@ -20,13 +20,14 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-  User              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model BlockerEntry {
-  id              String          @id
+  id              String          @id @default(cuid())
   date            DateTime        @default(now())
   severity        Int
   notes           String?
@@ -37,7 +38,7 @@ model BlockerEntry {
 }
 
 model DailyLog {
-  id            String       @id
+  id            String       @id @default(cuid())
   date          DateTime
   weight        Float?
   sleepHours    Float?
@@ -55,10 +56,11 @@ model DailyLog {
 
   @@unique([userId, date])
   @@index([date])
+  @@index([userId])
 }
 
 model DailyReview {
-  id          String   @id
+  id          String   @id @default(cuid())
   date        DateTime
   tookSoya    Boolean?
   elbowStatus String?
@@ -68,15 +70,17 @@ model DailyReview {
 }
 
 model DeadHangLog {
-  id      String   @id
+  id      String   @id @default(cuid())
   date    DateTime @default(now())
   seconds Int
   userId  String
   User    User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, date])
 }
 
 model Exercise {
-  id              String            @id
+  id              String            @id @default(cuid())
   name            String
   trackingType    String            @default("reps")
   defaultReps     Int?
@@ -102,7 +106,7 @@ model Exercise {
 }
 
 model ExerciseMuscle {
-  id            String      @id
+  id            String      @id @default(cuid())
   isPrimary     Boolean     @default(true)
   exerciseId    String
   muscleGroupId String
@@ -110,10 +114,12 @@ model ExerciseMuscle {
   MuscleGroup   MuscleGroup @relation(fields: [muscleGroupId], references: [id])
 
   @@unique([exerciseId, muscleGroupId])
+  @@index([exerciseId])
+  @@index([muscleGroupId])
 }
 
 model InventoryItem {
-  id              String         @id
+  id              String         @id @default(cuid())
   name            String
   icon            String
   proteinPerUnit  Float
@@ -132,17 +138,18 @@ model InventoryItem {
 
   @@unique([name, userId])
   @@index([isActive])
+  @@index([userId])
 }
 
 model MuscleGroup {
-  id             String           @id
+  id             String           @id @default(cuid())
   name           String           @unique
   majorRegion    String
   ExerciseMuscle ExerciseMuscle[]
 }
 
 model NutritionLog {
-  id              String        @id
+  id              String        @id @default(cuid())
   timestamp       DateTime      @default(now())
   qty             Float
   mealType        String?
@@ -152,10 +159,11 @@ model NutritionLog {
   User            User          @relation(fields: [userId], references: [id])
 
   @@index([userId, timestamp])
+  @@index([inventoryItemId])
 }
 
 model PhysicalBlocker {
-  id           String         @id
+  id           String         @id @default(cuid())
   name         String
   bodyPart     String
   status       BlockerStatus  @default(ACTIVE)
@@ -172,16 +180,18 @@ model PhysicalBlocker {
 }
 
 model ProgressPhoto {
-  id        String   @id
+  id        String   @id @default(cuid())
   date      DateTime @default(now())
   imagePath String
   type      String
   userId    String
   User      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, date])
 }
 
 model RoutineExercise {
-  id             String         @id
+  id             String         @id @default(cuid())
   order          Int
   sets           Int            @default(3)
   reps           Int?
@@ -191,10 +201,13 @@ model RoutineExercise {
   exerciseId     String
   Exercise       Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   WorkoutRoutine WorkoutRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@index([routineId])
+  @@index([exerciseId])
 }
 
 model SessionExercise {
-  id             String         @id
+  id             String         @id @default(cuid())
   order          Int
   targetSets     Int            @default(3)
   targetReps     Int?
@@ -212,10 +225,11 @@ model SessionExercise {
   SetLog         SetLog[]
 
   @@index([sessionId])
+  @@index([exerciseId])
 }
 
 model SetLog {
-  id                  String           @id
+  id                  String           @id @default(cuid())
   setNumber           Int
   targetReps          Int?
   actualReps          Int?
@@ -243,13 +257,13 @@ model SetLog {
 }
 
 model User {
-  id              String            @id
+  id              String            @id @default(cuid())
   name            String?
   email           String            @unique
   emailVerified   DateTime?
   image           String?
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime          @updatedAt
   Account         Account[]
   DailyLog        DailyLog[]
   DeadHangLog     DeadHangLog[]
@@ -263,10 +277,12 @@ model User {
   WaterLog        WaterLog[]
   WorkoutRoutine  WorkoutRoutine[]
   WorkoutSession  WorkoutSession[]
+
+  @@index([email])
 }
 
 model UserSettings {
-  id              String   @id
+  id              String   @id @default(cuid())
   userId          String   @unique
   proteinTarget   Float    @default(140)
   carbsTarget     Float    @default(200)
@@ -276,12 +292,12 @@ model UserSettings {
   dayCutoffHour   Int      @default(5)
   dayCutoffMinute Int      @default(30)
   createdAt       DateTime @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime @updatedAt
   User            User     @relation(fields: [userId], references: [id])
 }
 
 model WarmupChecklist {
-  id          String      @id
+  id          String      @id @default(cuid())
   name        String      @unique
   order       Int
   description String?
@@ -289,7 +305,7 @@ model WarmupChecklist {
 }
 
 model WarmupLog {
-  id                String          @id
+  id                String          @id @default(cuid())
   date              DateTime        @default(now())
   warmupChecklistId String
   completed         Boolean         @default(false)
@@ -301,10 +317,11 @@ model WarmupLog {
 
   @@unique([userId, warmupChecklistId, workoutSessionId])
   @@index([workoutSessionId])
+  @@index([userId])
 }
 
 model WaterLog {
-  id        String   @id
+  id        String   @id @default(cuid())
   timestamp DateTime @default(now())
   amount    Float
   userId    String
@@ -314,7 +331,7 @@ model WaterLog {
 }
 
 model WorkoutRoutine {
-  id              String            @id
+  id              String            @id @default(cuid())
   name            String
   description     String?
   isSystem        Boolean           @default(false)
@@ -329,7 +346,7 @@ model WorkoutRoutine {
 }
 
 model WorkoutSession {
-  id                String            @id
+  id                String            @id @default(cuid())
   date              DateTime
   dayOfWeek         Int
   weekOfYear        Int
@@ -369,6 +386,7 @@ model WorkoutSession {
   @@index([status])
   @@index([userId, date])
   @@index([userId, year, month])
+  @@index([routineId])
 }
 
 enum BlockerStatus {
