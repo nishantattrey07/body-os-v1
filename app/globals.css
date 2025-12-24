@@ -181,9 +181,3 @@ h1, h2, h3, h4, h5, h6 {
 button:not([class*="motion-"]), a:not([class*="motion-"]) {
   -webkit-tap-highlight-color: transparent;
 }
-
-/* Focus states for accessibility */
-*:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}

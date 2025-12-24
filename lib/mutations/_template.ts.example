@@ -1,0 +1,152 @@
+/**
+ * Base template for TanStack Mutation hooks
+ * 
+ * Rules:
+ * 1. ALWAYS implement optimistic UI
+ * 2. Include error rollback
+ * 3. Toast feedback
+ * 4. Invalidate queries on success
+ */
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+
+interface SetLog {
+    exerciseId: string;
+    reps: number;
+    weight: number;
+    rpe?: number;
+}
+
+/**
+ * Template: Optimistic mutation with rollback
+ */
+export function useLogSet() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (setData: SetLog) => {
+            const response = await fetch('/api/workout/log-set', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(setData),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to log set');
+            }
+
+            return response.json();
+        },
+
+        // ✅ OPTIMISTIC UPDATE - Instant UI feedback
+        onMutate: async (newSet) => {
+            // Cancel outgoing queries to avoid race conditions
+            await queryClient.cancelQueries({ queryKey: ['workout-session'] });
+
+            // Snapshot current data for rollback
+            const previousSession = queryClient.getQueryData(['workout-session']);
+
+            // Optimistically update cache
+            queryClient.setQueryData(['workout-session'], (old: any) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    sets: [...(old.sets || []), { ...newSet, id: `temp-${Date.now()}` }],
+                };
+            });
+
+            // Show instant feedback
+            toast.success('Set logged!');
+
+            // Return context for rollback
+            return { previousSession };
+        },
+
+        // ✅ ERROR ROLLBACK - Restore on failure
+        onError: (error, newSet, context) => {
+            // Rollback optimistic update
+            if (context?.previousSession) {
+                queryClient.setQueryData(['workout-session'], context.previousSession);
+            }
+
+            toast.error('Failed to log set - will retry');
+            console.error('Set log error:', error);
+        },
+
+        // ✅ SUCCESS - Refetch to ensure consistency
+        onSuccess: (data) => {
+            // Update with server response (replace temp ID)
+            queryClient.invalidateQueries({ queryKey: ['workout-session'] });
+        },
+    });
+}
+
+/**
+ * Template: Simple mutation (no optimistic UI needed)
+ */
+export function useUpdateSettings() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (settings: any) => {
+            const response = await fetch('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings),
+            });
+
+            if (!response.ok) throw new Error('Failed to update settings');
+            return response.json();
+        },
+
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['user-settings'] });
+            toast.success('Settings updated!');
+        },
+
+        onError: () => {
+            toast.error('Failed to update settings');
+        },
+    });
+}
+
+/**
+ * Template: Delete mutation
+ */
+export function useDeleteRoutine() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const response = await fetch(`/api/routine/${id}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) throw new Error('Failed to delete routine');
+            return response.json();
+        },
+
+        onMutate: async (deletedId) => {
+            await queryClient.cancelQueries({ queryKey: ['routines'] });
+            const previous = queryClient.getQueryData(['routines']);
+
+            // Optimistically remove from list
+            queryClient.setQueryData(['routines'], (old: any[]) =>
+                old?.filter(r => r.id !== deletedId) || []
+            );
+
+            toast.success('Routine deleted');
+            return { previous };
+        },
+
+        onError: (err, deletedId, context) => {
+            queryClient.setQueryData(['routines'], context?.previous);
+            toast.error('Failed to delete routine');
+        },
+
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['routines'] });
+        },
+    });
+}
