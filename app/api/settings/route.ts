@@ -38,3 +38,40 @@ export async function GET() {
         );
     }
 }
+
+/**
+ * POST /api/settings
+ * 
+ * Update user settings
+ */
+export async function POST(request: Request) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const data = await request.json();
+
+        const settings = await prisma.userSettings.update({
+            where: { userId: session.user.id },
+            data: {
+                proteinTarget: data.proteinTarget,
+                carbsTarget: data.carbsTarget,
+                fatsTarget: data.fatsTarget,
+                caloriesTarget: data.caloriesTarget,
+                waterTarget: data.waterTarget,
+                dayCutoffHour: data.dayCutoffHour,
+                dayCutoffMinute: data.dayCutoffMinute,
+            },
+        });
+
+        return NextResponse.json(settings);
+    } catch (error) {
+        console.error("[API] Failed to update settings:", error);
+        return NextResponse.json(
+            { error: "Internal server error" },
+            { status: 500 }
+        );
+    }
+}
