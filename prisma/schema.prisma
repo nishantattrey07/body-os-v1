@@ -1,0 +1,385 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                String  @id
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  User              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model BlockerEntry {
+  id              String          @id
+  date            DateTime        @default(now())
+  severity        Int
+  notes           String?
+  blockerId       String
+  PhysicalBlocker PhysicalBlocker @relation(fields: [blockerId], references: [id], onDelete: Cascade)
+
+  @@index([blockerId, date])
+}
+
+model DailyLog {
+  id            String       @id
+  date          DateTime
+  weight        Float?
+  sleepHours    Float?
+  sleepQuality  Int?
+  mood          String?
+  bloated       Boolean      @default(false)
+  proteinTotal  Float        @default(0)
+  carbsTotal    Float        @default(0)
+  fatsTotal     Float        @default(0)
+  waterTotal    Float        @default(0)
+  caloriesTotal Float        @default(0)
+  userId        String
+  User          User         @relation(fields: [userId], references: [id])
+  DailyReview   DailyReview?
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model DailyReview {
+  id          String   @id
+  date        DateTime
+  tookSoya    Boolean?
+  elbowStatus String?
+  notes       String?
+  dailyLogId  String   @unique
+  DailyLog    DailyLog @relation(fields: [dailyLogId], references: [id])
+}
+
+model DeadHangLog {
+  id      String   @id
+  date    DateTime @default(now())
+  seconds Int
+  userId  String
+  User    User     @relation(fields: [userId], references: [id])
+}
+
+model Exercise {
+  id              String            @id
+  name            String
+  trackingType    String            @default("reps")
+  defaultReps     Int?
+  defaultDuration Int?
+  defaultSets     Int               @default(3)
+  category        String
+  description     String?
+  equipment       String?
+  isSystem        Boolean           @default(false)
+  userId          String?
+  swapExerciseId  String?
+  Exercise        Exercise?         @relation("ExerciseToExercise", fields: [swapExerciseId], references: [id])
+  other_Exercise  Exercise[]        @relation("ExerciseToExercise")
+  User            User?             @relation(fields: [userId], references: [id])
+  ExerciseMuscle  ExerciseMuscle[]
+  RoutineExercise RoutineExercise[]
+  SessionExercise SessionExercise[]
+
+  @@unique([name, userId])
+  @@index([category])
+  @@index([isSystem, name])
+  @@index([userId, name])
+}
+
+model ExerciseMuscle {
+  id            String      @id
+  isPrimary     Boolean     @default(true)
+  exerciseId    String
+  muscleGroupId String
+  Exercise      Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  MuscleGroup   MuscleGroup @relation(fields: [muscleGroupId], references: [id])
+
+  @@unique([exerciseId, muscleGroupId])
+}
+
+model InventoryItem {
+  id              String         @id
+  name            String
+  icon            String
+  proteinPerUnit  Float
+  carbsPerUnit    Float          @default(0)
+  fatPerUnit      Float          @default(0)
+  caloriesPerUnit Float
+  volumePerUnit   Float
+  defaultUnit     String
+  costPerUnit     Float          @default(0)
+  isActive        Boolean        @default(true)
+  maxDailyQty     Float?
+  isSystem        Boolean        @default(false)
+  userId          String?
+  User            User?          @relation(fields: [userId], references: [id])
+  NutritionLog    NutritionLog[]
+
+  @@unique([name, userId])
+  @@index([isActive])
+}
+
+model MuscleGroup {
+  id             String           @id
+  name           String           @unique
+  majorRegion    String
+  ExerciseMuscle ExerciseMuscle[]
+}
+
+model NutritionLog {
+  id              String        @id
+  timestamp       DateTime      @default(now())
+  qty             Float
+  mealType        String?
+  inventoryItemId String
+  userId          String
+  InventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  User            User          @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp])
+}
+
+model PhysicalBlocker {
+  id           String         @id
+  name         String
+  bodyPart     String
+  status       BlockerStatus  @default(ACTIVE)
+  severity     Int
+  startDate    DateTime       @default(now())
+  resolvedAt   DateTime?
+  notes        String?
+  userId       String
+  BlockerEntry BlockerEntry[]
+  User         User           @relation(fields: [userId], references: [id])
+  SetLog       SetLog[]
+
+  @@index([userId, status])
+}
+
+model ProgressPhoto {
+  id        String   @id
+  date      DateTime @default(now())
+  imagePath String
+  type      String
+  userId    String
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model RoutineExercise {
+  id             String         @id
+  order          Int
+  sets           Int            @default(3)
+  reps           Int?
+  duration       Int?
+  restSeconds    Int            @default(90)
+  routineId      String
+  exerciseId     String
+  Exercise       Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  WorkoutRoutine WorkoutRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+}
+
+model SessionExercise {
+  id             String         @id
+  order          Int
+  targetSets     Int            @default(3)
+  targetReps     Int?
+  targetDuration Int?
+  restSeconds    Int            @default(90)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  skipped        Boolean        @default(false)
+  skipReason     String?
+  swappedFromId  String?
+  sessionId      String
+  exerciseId     String
+  Exercise       Exercise       @relation(fields: [exerciseId], references: [id])
+  WorkoutSession WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  SetLog         SetLog[]
+
+  @@index([sessionId])
+}
+
+model SetLog {
+  id                  String           @id
+  setNumber           Int
+  targetReps          Int?
+  actualReps          Int?
+  targetDuration      Int?
+  actualSeconds       Int?
+  weight              Float            @default(0)
+  weightUnit          String           @default("kg")
+  rpe                 Int?
+  painLevel           Int?
+  painLocation        String?
+  restTaken           Int?
+  tempo               String?
+  completedAt         DateTime         @default(now())
+  isWarmupSet         Boolean          @default(false)
+  isDropSet           Boolean          @default(false)
+  isFailure           Boolean          @default(false)
+  formNotes           String?
+  sessionExerciseId   String
+  aggravatedBlockerId String?
+  PhysicalBlocker     PhysicalBlocker? @relation(fields: [aggravatedBlockerId], references: [id])
+  SessionExercise     SessionExercise  @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([completedAt])
+  @@index([sessionExerciseId])
+}
+
+model User {
+  id              String            @id
+  name            String?
+  email           String            @unique
+  emailVerified   DateTime?
+  image           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  Account         Account[]
+  DailyLog        DailyLog[]
+  DeadHangLog     DeadHangLog[]
+  Exercise        Exercise[]
+  InventoryItem   InventoryItem[]
+  NutritionLog    NutritionLog[]
+  PhysicalBlocker PhysicalBlocker[]
+  ProgressPhoto   ProgressPhoto[]
+  UserSettings    UserSettings?
+  WarmupLog       WarmupLog[]
+  WaterLog        WaterLog[]
+  WorkoutRoutine  WorkoutRoutine[]
+  WorkoutSession  WorkoutSession[]
+}
+
+model UserSettings {
+  id              String   @id
+  userId          String   @unique
+  proteinTarget   Float    @default(140)
+  carbsTarget     Float    @default(200)
+  fatsTarget      Float    @default(60)
+  caloriesTarget  Float    @default(2000)
+  waterTarget     Float    @default(4000)
+  dayCutoffHour   Int      @default(5)
+  dayCutoffMinute Int      @default(30)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  User            User     @relation(fields: [userId], references: [id])
+}
+
+model WarmupChecklist {
+  id          String      @id
+  name        String      @unique
+  order       Int
+  description String?
+  WarmupLog   WarmupLog[]
+}
+
+model WarmupLog {
+  id                String          @id
+  date              DateTime        @default(now())
+  warmupChecklistId String
+  completed         Boolean         @default(false)
+  userId            String
+  workoutSessionId  String?
+  User              User            @relation(fields: [userId], references: [id])
+  WarmupChecklist   WarmupChecklist @relation(fields: [warmupChecklistId], references: [id])
+  WorkoutSession    WorkoutSession? @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, warmupChecklistId, workoutSessionId])
+  @@index([workoutSessionId])
+}
+
+model WaterLog {
+  id        String   @id
+  timestamp DateTime @default(now())
+  amount    Float
+  userId    String
+  User      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp])
+}
+
+model WorkoutRoutine {
+  id              String            @id
+  name            String
+  description     String?
+  isSystem        Boolean           @default(false)
+  userId          String?
+  RoutineExercise RoutineExercise[]
+  User            User?             @relation(fields: [userId], references: [id])
+  WorkoutSession  WorkoutSession[]
+
+  @@unique([name, userId])
+  @@index([isSystem, name])
+  @@index([userId, name])
+}
+
+model WorkoutSession {
+  id                String            @id
+  date              DateTime
+  dayOfWeek         Int
+  weekOfYear        Int
+  month             Int
+  year              Int
+  startedAt         DateTime          @default(now())
+  completedAt       DateTime?
+  activeSeconds     Int               @default(0)
+  lastActivityAt    DateTime?
+  timeOfDay         String?
+  status            SessionStatus     @default(IN_PROGRESS)
+  preWorkoutEnergy  Int?
+  sleepLastNight    Float?
+  sleepQuality      Int?
+  stressLevel       Int?
+  soreness          Int?
+  fastedWorkout     Boolean           @default(false)
+  caffeineIntake    Int?
+  postWorkoutEnergy Int?
+  pumpRating        Int?
+  focusRating       Int?
+  overallRating     Int?
+  environment       String?
+  trainingPhase     String?
+  programName       String?
+  mesocycleWeek     Int?
+  warmupCompleted   Boolean           @default(false)
+  notes             String?
+  userId            String
+  routineId         String?
+  SessionExercise   SessionExercise[]
+  WarmupLog         WarmupLog[]
+  WorkoutRoutine    WorkoutRoutine?   @relation(fields: [routineId], references: [id])
+  User              User              @relation(fields: [userId], references: [id])
+
+  @@index([dayOfWeek])
+  @@index([status])
+  @@index([userId, date])
+  @@index([userId, year, month])
+}
+
+enum BlockerStatus {
+  ACTIVE
+  RECOVERING
+  RESOLVED
+  CHRONIC
+}
+
+enum SessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
