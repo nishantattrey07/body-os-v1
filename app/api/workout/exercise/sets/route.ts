@@ -55,7 +55,7 @@ export async function GET(request: Request) {
                 setNumber: true,
                 actualReps: true,
                 actualSeconds: true,
-                weight: true,
+                actualWeight: true,
                 rpe: true,
                 completedAt: true,
             },

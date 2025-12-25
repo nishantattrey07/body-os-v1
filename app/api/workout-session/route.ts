@@ -68,6 +68,7 @@ export async function POST(request: Request) {
                         targetSets: re.sets,
                         targetReps: re.reps,
                         targetDuration: re.duration,
+                        targetWeight: re.weight,
                         restSeconds: re.restSeconds,
                     })),
                 },
@@ -145,7 +146,7 @@ export async function GET() {
                                 setNumber: true,
                                 actualReps: true,
                                 actualSeconds: true,
-                                weight: true,
+                                actualWeight: true,
                             },
                             orderBy: {
                                 setNumber: 'asc',

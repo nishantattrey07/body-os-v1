@@ -34,7 +34,8 @@ export function ExerciseLogger({
       ? exercise.defaultDuration || 60
       : exercise.defaultReps || 10
   );
-  const [weight, setWeight] = useState(exercise.defaultWeight || 0);
+  // Use targetWeight from SessionExercise (set in routine builder), fallback to 0
+  const [weight, setWeight] = useState(exercise.targetWeight || 0);
   const [rpe, setRPE] = useState(7);
   const [painLevel, setPainLevel] = useState(0);
   const [selectedBlockerId, setSelectedBlockerId] = useState<string | null>(
@@ -76,7 +77,7 @@ export function ExerciseLogger({
   // Reset state when exercise changes
   useEffect(() => {
     setValue(isTimeBased ? (exercise.defaultDuration || 60) : (exercise.defaultReps || 10));
-    setWeight(exercise.defaultWeight || 0);
+    setWeight(exercise.targetWeight || 0);
     setRPE(7);
     setPainLevel(0);
     setSelectedBlockerId(null);
@@ -128,7 +129,8 @@ export function ExerciseLogger({
       actualReps: isTimeBased ? undefined : value,
       targetDuration: isTimeBased ? exercise.defaultDuration || 60 : undefined,
       actualSeconds: isTimeBased ? value : undefined,
-      weight,
+      targetWeight: exercise.targetWeight || undefined,
+      actualWeight: weight,  // Local state 'weight' maps to DB 'actualWeight'
       rpe,
       painLevel,
       restTaken: actualRestTaken,
@@ -368,9 +370,14 @@ export function ExerciseLogger({
       {!isTimeBased && (
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-zinc-100">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-bold text-zinc-700 uppercase tracking-wide">
-              Weight 
-            </p>
+            <div>
+              <p className="text-xs font-bold text-zinc-700 uppercase tracking-wide">
+                Weight
+              </p>
+              {exercise.targetWeight && exercise.targetWeight > 0 && (
+                <p className="text-xs text-zinc-400">Target: {exercise.targetWeight} kg</p>
+              )}
+            </div>
             <span className="text-lg font-bold text-orange-600">{weight} kg</span>
           </div>
           <div className="flex gap-2">

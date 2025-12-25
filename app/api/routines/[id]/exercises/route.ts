@@ -73,6 +73,7 @@ export async function PUT(
                         sets: ex.sets,
                         reps: ex.reps || null,
                         duration: ex.duration || null,
+                        weight: ex.weight || null,
                         restSeconds: ex.restSeconds,
                     })),
                 });

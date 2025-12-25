@@ -196,6 +196,7 @@ model RoutineExercise {
   sets           Int            @default(3)
   reps           Int?
   duration       Int?
+  weight         Float?         // Target weight for this exercise
   restSeconds    Int            @default(90)
   routineId      String
   exerciseId     String
@@ -212,6 +213,7 @@ model SessionExercise {
   targetSets     Int            @default(3)
   targetReps     Int?
   targetDuration Int?
+  targetWeight   Float?         // Planned weight (copied from RoutineExercise.weight)
   restSeconds    Int            @default(90)
   startedAt      DateTime?
   completedAt    DateTime?
@@ -235,7 +237,8 @@ model SetLog {
   actualReps          Int?
   targetDuration      Int?
   actualSeconds       Int?
-  weight              Float            @default(0)
+  targetWeight        Float?           // Planned weight for this set
+  actualWeight        Float            @default(0)  // What user actually lifted
   weightUnit          String           @default("kg")
   rpe                 Int?
   painLevel           Int?

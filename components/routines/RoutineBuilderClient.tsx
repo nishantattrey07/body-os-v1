@@ -23,6 +23,7 @@ interface RoutineExercise {
   sets: number;
   reps: number | null;
   duration: number | null;
+  weight: number | null;
   restSeconds: number;
   Exercise: Exercise;
 }
@@ -87,6 +88,7 @@ export function RoutineBuilderClient({
       sets: ex.sets,
       reps: ex.reps,
       duration: ex.duration,
+      weight: ex.weight,
       restSeconds: ex.restSeconds,
     }));
 
@@ -106,6 +108,7 @@ export function RoutineBuilderClient({
       sets: exercise.defaultSets,
       reps: exercise.trackingType === "seconds" ? null : (exercise.defaultReps || 10),
       duration: exercise.trackingType === "seconds" ? (exercise.defaultDuration || 60) : null,
+      weight: null,
       restSeconds: 90,
       Exercise: exercise,
     };
@@ -123,8 +126,8 @@ export function RoutineBuilderClient({
 
   const handleUpdateConfig = (
     id: string,
-    field: "sets" | "reps" | "duration" | "restSeconds",
-    value: number
+    field: "sets" | "reps" | "duration" | "weight" | "restSeconds",
+    value: number | null
   ) => {
     setLocalExercises((prev) =>
       prev.map((ex) => (ex.id === id ? { ...ex, [field]: value } : ex))
@@ -204,8 +207,8 @@ export function RoutineBuilderClient({
                   <div className="flex-1">
                     <h3 className="font-bold text-zinc-900 mb-3">{re.Exercise.name}</h3>
 
-                    {/* Configuration Grid */}
-                    <div className="grid grid-cols-3 gap-2">
+                    {/* Configuration Grid - 4 cols */}
+                    <div className="grid grid-cols-4 gap-2">
                       {/* Sets */}
                       <div>
                         <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
@@ -225,7 +228,7 @@ export function RoutineBuilderClient({
                       {/* Reps or Duration */}
                       <div>
                         <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
-                          {re.Exercise.trackingType === "seconds" ? "Seconds" : "Reps"}
+                          {re.Exercise.trackingType === "seconds" ? "Sec" : "Reps"}
                         </label>
                         <input
                           type="number"
@@ -243,10 +246,29 @@ export function RoutineBuilderClient({
                         />
                       </div>
 
+                      {/* Weight */}
+                      <div>
+                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                          Weight
+                        </label>
+                        <input
+                          type="number"
+                          value={re.weight ?? ""}
+                          placeholder="kg"
+                          onChange={(e) => {
+                            const val = e.target.value ? parseFloat(e.target.value) : null;
+                            handleUpdateConfig(re.id, "weight", val);
+                          }}
+                          min="0"
+                          step="0.5"
+                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
+                        />
+                      </div>
+
                       {/* Rest */}
                       <div>
                         <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
-                          Rest (s)
+                          Rest
                         </label>
                         <input
                           type="number"

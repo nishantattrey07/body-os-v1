@@ -680,6 +680,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
                       defaultReps: currentExercise.targetReps,
                       defaultDuration: currentExercise.targetDuration,
                       defaultRestSeconds: currentExercise.restSeconds,
+                      targetWeight: currentExercise.targetWeight,
                     }}
                     sessionExerciseId={currentExercise.id}
                     onComplete={handleExerciseComplete}
