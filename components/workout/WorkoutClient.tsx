@@ -401,12 +401,13 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
       toast.success("Workout completed!");
       sessionManager.clearActiveSession();
       
-      // Reset timing state
-      setWorkoutStartTime(null);
-      setTotalPauseSeconds(0);
-      setPauseStartTime(null);
-      
+      // Navigate immediately - component will unmount, no need to clear state
       router.push("/");
+      
+      // State clearing not needed - component unmounts on navigation
+      // setWorkoutStartTime(null);
+      // setTotalPauseSeconds(0);
+      // setPauseStartTime(null);
     } catch (error) {
       console.error("[WorkoutClient] Failed to complete session:", error);
       toast.error("Failed to save workout completion");
@@ -675,7 +676,10 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
                   <ExerciseLogger
                     exercise={{
                       ...currentExercise.Exercise,
-                      defaultSets: currentExercise.targetSets,  // Override with session-specific count
+                      defaultSets: currentExercise.targetSets,
+                      defaultReps: currentExercise.targetReps,
+                      defaultDuration: currentExercise.targetDuration,
+                      defaultRestSeconds: currentExercise.restSeconds,
                     }}
                     sessionExerciseId={currentExercise.id}
                     onComplete={handleExerciseComplete}

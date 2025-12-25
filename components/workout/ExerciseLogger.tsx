@@ -152,7 +152,7 @@ export function ExerciseLogger({
       setCurrentSet((prev) => prev + 1);
 
       const restTime =
-        exercise.restSeconds !== undefined ? exercise.restSeconds : 60;
+        exercise.defaultRestSeconds !== undefined ? exercise.defaultRestSeconds : 60;
       if (restTime > 0) {
         setRestTimerMax(restTime);
         setRestTimer(restTime);
@@ -233,7 +233,7 @@ export function ExerciseLogger({
         </h2>
         
         {/* Set Progress - compact without card */}
-        <div className="flex justify-center gap-3 mt-4 mb-3">
+        <div className="flex flex-wrap justify-center gap-3 mt-4 mb-3">
           {Array.from({ length: totalSets }, (_, i) => {
             const setNum = i + 1;
             const isCompleted = setNum < currentSet;
