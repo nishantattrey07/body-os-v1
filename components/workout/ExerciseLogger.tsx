@@ -36,6 +36,10 @@ export function ExerciseLogger({
   );
   // Use targetWeight from SessionExercise (set in routine builder), fallback to 0
   const [weight, setWeight] = useState(exercise.targetWeight || 0);
+  // Distance tracking (optional, if exercise.tracksDistance)
+  const tracksDistance = exercise.tracksDistance || false;
+  const [distance, setDistance] = useState(exercise.targetDistance || 0);
+  const distanceUnit = exercise.targetDistanceUnit || "m";
   const [rpe, setRPE] = useState(7);
   const [painLevel, setPainLevel] = useState(0);
   const [selectedBlockerId, setSelectedBlockerId] = useState<string | null>(
@@ -78,6 +82,7 @@ export function ExerciseLogger({
   useEffect(() => {
     setValue(isTimeBased ? (exercise.defaultDuration || 60) : (exercise.defaultReps || 10));
     setWeight(exercise.targetWeight || 0);
+    setDistance(exercise.targetDistance || 0);
     setRPE(7);
     setPainLevel(0);
     setSelectedBlockerId(null);
@@ -131,6 +136,9 @@ export function ExerciseLogger({
       actualSeconds: isTimeBased ? value : undefined,
       targetWeight: exercise.targetWeight || undefined,
       actualWeight: weight,  // Local state 'weight' maps to DB 'actualWeight'
+      targetDistance: tracksDistance ? (exercise.targetDistance || undefined) : undefined,
+      actualDistance: tracksDistance ? distance : undefined,
+      distanceUnit: tracksDistance ? distanceUnit : undefined,
       rpe,
       painLevel,
       restTaken: actualRestTaken,
@@ -404,6 +412,49 @@ export function ExerciseLogger({
               className="flex-1 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 font-bold text-white transition-colors"
             >
               +5
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Distance Input (if exercise tracks distance) */}
+      {tracksDistance && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-blue-100">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">
+                Distance
+              </p>
+              {exercise.targetDistance && exercise.targetDistance > 0 && (
+                <p className="text-xs text-blue-400">Target: {exercise.targetDistance} {distanceUnit}</p>
+              )}
+            </div>
+            <span className="text-lg font-bold text-blue-600">{distance} {distanceUnit}</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setDistance(Math.max(0, distance - 10))}
+              className="flex-1 h-10 rounded-xl bg-zinc-200 hover:bg-zinc-300 font-bold text-zinc-700 transition-colors"
+            >
+              -10
+            </button>
+            <button
+              onClick={() => setDistance(Math.max(0, distance - 1))}
+              className="flex-1 h-10 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-bold text-zinc-700 transition-colors"
+            >
+              -1
+            </button>
+            <button
+              onClick={() => setDistance(distance + 1)}
+              className="flex-1 h-10 rounded-xl bg-blue-100 hover:bg-blue-200 font-bold text-blue-700 transition-colors"
+            >
+              +1
+            </button>
+            <button
+              onClick={() => setDistance(distance + 10)}
+              className="flex-1 h-10 rounded-xl bg-blue-500 hover:bg-blue-600 font-bold text-white transition-colors"
+            >
+              +10
             </button>
           </div>
         </div>

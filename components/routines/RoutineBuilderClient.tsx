@@ -15,6 +15,9 @@ interface Exercise {
   defaultSets: number;
   defaultReps: number | null;
   defaultDuration: number | null;
+  tracksDistance?: boolean;
+  defaultDistance?: number | null;
+  defaultDistanceUnit?: string;
 }
 
 interface RoutineExercise {
@@ -24,6 +27,8 @@ interface RoutineExercise {
   reps: number | null;
   duration: number | null;
   weight: number | null;
+  distance: number | null;
+  distanceUnit: string | null;
   restSeconds: number;
   Exercise: Exercise;
 }
@@ -49,7 +54,8 @@ export function RoutineBuilderClient({
 
   // React Query
   const { data: routine } = useRoutine(routineId, initialRoutine);
-  const { data: exercises = initialExercises } = useExercises(initialExercises);
+  const { data: exercisesData } = useExercises(initialExercises);
+  const exercises = exercisesData?.exercises || initialExercises || [];
   const saveMutation = useSaveRoutineExercises();
 
   // Draft state (local only until save)
@@ -89,6 +95,8 @@ export function RoutineBuilderClient({
       reps: ex.reps,
       duration: ex.duration,
       weight: ex.weight,
+      distance: ex.distance,
+      distanceUnit: ex.distanceUnit,
       restSeconds: ex.restSeconds,
     }));
 
@@ -109,6 +117,8 @@ export function RoutineBuilderClient({
       reps: exercise.trackingType === "seconds" ? null : (exercise.defaultReps || 10),
       duration: exercise.trackingType === "seconds" ? (exercise.defaultDuration || 60) : null,
       weight: null,
+      distance: exercise.tracksDistance ? (exercise.defaultDistance || null) : null,
+      distanceUnit: exercise.tracksDistance ? (exercise.defaultDistanceUnit || "m") : null,
       restSeconds: 90,
       Exercise: exercise,
     };
@@ -126,7 +136,7 @@ export function RoutineBuilderClient({
 
   const handleUpdateConfig = (
     id: string,
-    field: "sets" | "reps" | "duration" | "weight" | "restSeconds",
+    field: "sets" | "reps" | "duration" | "weight" | "distance" | "restSeconds",
     value: number | null
   ) => {
     setLocalExercises((prev) =>
@@ -207,11 +217,11 @@ export function RoutineBuilderClient({
                   <div className="flex-1">
                     <h3 className="font-bold text-zinc-900 mb-3">{re.Exercise.name}</h3>
 
-                    {/* Configuration Grid - 4 cols */}
-                    <div className="grid grid-cols-4 gap-2">
+                    {/* Configuration Grid - dynamic cols based on tracksDistance */}
+                    <div className={`grid gap-2 ${re.Exercise.tracksDistance ? 'grid-cols-5' : 'grid-cols-4'}`}>
                       {/* Sets */}
                       <div>
-                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                        <label className={`text-xs uppercase font-bold block mb-1 ${re.Exercise.tracksDistance ? 'text-zinc-500 tracking-tight' : 'text-zinc-500 tracking-wider'}`}>
                           Sets
                         </label>
                         <input
@@ -221,13 +231,13 @@ export function RoutineBuilderClient({
                             handleUpdateConfig(re.id, "sets", parseInt(e.target.value) || 1)
                           }
                           min="1"
-                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
+                          className={`w-full rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center ${re.Exercise.tracksDistance ? 'px-2 py-1.5 text-sm' : 'px-3 py-2'}`}
                         />
                       </div>
 
                       {/* Reps or Duration */}
                       <div>
-                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                        <label className={`text-xs uppercase font-bold block mb-1 ${re.Exercise.tracksDistance ? 'text-zinc-500 tracking-tight' : 'text-zinc-500 tracking-wider'}`}>
                           {re.Exercise.trackingType === "seconds" ? "Sec" : "Reps"}
                         </label>
                         <input
@@ -242,14 +252,14 @@ export function RoutineBuilderClient({
                             handleUpdateConfig(re.id, field, parseInt(e.target.value) || 1);
                           }}
                           min="1"
-                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
+                          className={`w-full rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center ${re.Exercise.tracksDistance ? 'px-2 py-1.5 text-sm' : 'px-3 py-2'}`}
                         />
                       </div>
 
                       {/* Weight */}
                       <div>
-                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
-                          Weight
+                        <label className={`text-xs uppercase font-bold block mb-1 ${re.Exercise.tracksDistance ? 'text-zinc-500 tracking-tight' : 'text-zinc-500 tracking-wider'}`}>
+                          {re.Exercise.tracksDistance ? "Wt" : "Weight"}
                         </label>
                         <input
                           type="number"
@@ -261,13 +271,34 @@ export function RoutineBuilderClient({
                           }}
                           min="0"
                           step="0.5"
-                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
+                          className={`w-full rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center ${re.Exercise.tracksDistance ? 'px-2 py-1.5 text-sm' : 'px-3 py-2'}`}
                         />
                       </div>
 
+                      {/* Distance - only show if exercise tracks distance */}
+                      {re.Exercise.tracksDistance && (
+                        <div>
+                          <label className="text-xs text-blue-600 uppercase tracking-tight font-bold block mb-1">
+                            Dist
+                          </label>
+                          <input
+                            type="number"
+                            value={re.distance ?? ""}
+                            placeholder={re.distanceUnit || "m"}
+                            onChange={(e) => {
+                              const val = e.target.value ? parseFloat(e.target.value) : null;
+                              handleUpdateConfig(re.id, "distance", val);
+                            }}
+                            min="0"
+                            step="1"
+                            className="w-full px-2 py-1.5 text-sm rounded-lg border-2 border-blue-200 focus:border-blue-500 outline-none font-bold text-center"
+                          />
+                        </div>
+                      )}
+
                       {/* Rest */}
                       <div>
-                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                        <label className={`text-xs uppercase font-bold block mb-1 ${re.Exercise.tracksDistance ? 'text-zinc-500 tracking-tight' : 'text-zinc-500 tracking-wider'}`}>
                           Rest
                         </label>
                         <input
@@ -277,8 +308,7 @@ export function RoutineBuilderClient({
                             handleUpdateConfig(re.id, "restSeconds", parseInt(e.target.value) || 0)
                           }
                           min="0"
-                          step="5"
-                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
+                          className={`w-full rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center ${re.Exercise.tracksDistance ? 'px-2 py-1.5 text-sm' : 'px-3 py-2'}`}
                         />
                       </div>
                     </div>

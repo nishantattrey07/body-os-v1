@@ -80,24 +80,27 @@ model DeadHangLog {
 }
 
 model Exercise {
-  id              String            @id @default(cuid())
-  name            String
-  trackingType    String            @default("reps")
-  defaultReps     Int?
-  defaultDuration Int?
-  defaultSets     Int               @default(3)
-  category        String
-  description     String?
-  equipment       String?
-  isSystem        Boolean           @default(false)
-  userId          String?
-  swapExerciseId  String?
-  Exercise        Exercise?         @relation("ExerciseToExercise", fields: [swapExerciseId], references: [id])
-  other_Exercise  Exercise[]        @relation("ExerciseToExercise")
-  User            User?             @relation(fields: [userId], references: [id])
-  ExerciseMuscle  ExerciseMuscle[]
-  RoutineExercise RoutineExercise[]
-  SessionExercise SessionExercise[]
+  id                  String            @id @default(cuid())
+  name                String
+  trackingType        String            @default("reps")
+  defaultReps         Int?
+  defaultDuration     Int?
+  defaultSets         Int               @default(3)
+  tracksDistance      Boolean           @default(false)  // NEW: Optional distance tracking
+  defaultDistance     Float?                             // NEW: Default distance value
+  defaultDistanceUnit String            @default("m")    // NEW: "m", "km", "miles"
+  category            String
+  description         String?
+  equipment           String?
+  isSystem            Boolean           @default(false)
+  userId              String?
+  swapExerciseId      String?
+  Exercise            Exercise?         @relation("ExerciseToExercise", fields: [swapExerciseId], references: [id])
+  other_Exercise      Exercise[]        @relation("ExerciseToExercise")
+  User                User?             @relation(fields: [userId], references: [id])
+  ExerciseMuscle      ExerciseMuscle[]
+  RoutineExercise     RoutineExercise[]
+  SessionExercise     SessionExercise[]
 
   @@unique([name, userId])
   @@index([category])
@@ -197,6 +200,8 @@ model RoutineExercise {
   reps           Int?
   duration       Int?
   weight         Float?         // Target weight for this exercise
+  distance       Float?         // NEW: Target distance
+  distanceUnit   String?        // NEW: "m", "km", "miles"
   restSeconds    Int            @default(90)
   routineId      String
   exerciseId     String
@@ -208,23 +213,25 @@ model RoutineExercise {
 }
 
 model SessionExercise {
-  id             String         @id @default(cuid())
-  order          Int
-  targetSets     Int            @default(3)
-  targetReps     Int?
-  targetDuration Int?
-  targetWeight   Float?         // Planned weight (copied from RoutineExercise.weight)
-  restSeconds    Int            @default(90)
-  startedAt      DateTime?
-  completedAt    DateTime?
-  skipped        Boolean        @default(false)
-  skipReason     String?
-  swappedFromId  String?
-  sessionId      String
-  exerciseId     String
-  Exercise       Exercise       @relation(fields: [exerciseId], references: [id])
-  WorkoutSession WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  SetLog         SetLog[]
+  id                 String         @id @default(cuid())
+  order              Int
+  targetSets         Int            @default(3)
+  targetReps         Int?
+  targetDuration     Int?
+  targetWeight       Float?         // Planned weight (copied from RoutineExercise.weight)
+  targetDistance     Float?         // NEW: Planned distance
+  targetDistanceUnit String?        // NEW: "m", "km", "miles"
+  restSeconds        Int            @default(90)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  skipped            Boolean        @default(false)
+  skipReason         String?
+  swappedFromId      String?
+  sessionId          String
+  exerciseId         String
+  Exercise           Exercise       @relation(fields: [exerciseId], references: [id])
+  WorkoutSession     WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  SetLog             SetLog[]
 
   @@index([sessionId])
   @@index([exerciseId])
@@ -240,6 +247,9 @@ model SetLog {
   targetWeight        Float?           // Planned weight for this set
   actualWeight        Float            @default(0)  // What user actually lifted
   weightUnit          String           @default("kg")
+  targetDistance      Float?           // NEW: Planned distance
+  actualDistance      Float?           // NEW: What user actually did
+  distanceUnit        String?          // NEW: "m", "km", "miles"
   rpe                 Int?
   painLevel           Int?
   painLocation        String?

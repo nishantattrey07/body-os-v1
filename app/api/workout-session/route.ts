@@ -69,6 +69,8 @@ export async function POST(request: Request) {
                         targetReps: re.reps,
                         targetDuration: re.duration,
                         targetWeight: re.weight,
+                        targetDistance: re.distance,
+                        targetDistanceUnit: re.distanceUnit,
                         restSeconds: re.restSeconds,
                     })),
                 },

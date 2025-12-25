@@ -12,6 +12,9 @@ interface ExerciseFormProps {
     defaultSets: number;
     defaultReps?: number;
     defaultDuration?: number;
+    tracksDistance?: boolean;
+    defaultDistance?: number;
+    defaultDistanceUnit?: string;
     description?: string;
   };
   onSubmit: (data: {
@@ -21,6 +24,9 @@ interface ExerciseFormProps {
     defaultSets: number;
     defaultReps?: number;
     defaultDuration?: number;
+    tracksDistance: boolean;
+    defaultDistance?: number;
+    defaultDistanceUnit?: string;
     description?: string;
   }) => void;
   onCancel: () => void;
@@ -44,6 +50,9 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
   const [defaultSets, setDefaultSets] = useState(initialData?.defaultSets || 3);
   const [defaultReps, setDefaultReps] = useState(initialData?.defaultReps || 10);
   const [defaultDuration, setDefaultDuration] = useState(initialData?.defaultDuration || 60);
+  const [tracksDistance, setTracksDistance] = useState(initialData?.tracksDistance || false);
+  const [defaultDistance, setDefaultDistance] = useState(initialData?.defaultDistance || 20);
+  const [defaultDistanceUnit, setDefaultDistanceUnit] = useState(initialData?.defaultDistanceUnit || "m");
   const [description, setDescription] = useState(initialData?.description || "");
 
   // Reset form when modal closes or initialData changes
@@ -58,6 +67,9 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       setDefaultSets(3);
       setDefaultReps(10);
       setDefaultDuration(60);
+      setTracksDistance(false);
+      setDefaultDistance(20);
+      setDefaultDistanceUnit("m");
       setDescription("");
     } else if (initialData) {
       // Set form data when editing
@@ -69,6 +81,9 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       setDefaultSets(initialData.defaultSets);
       setDefaultReps(initialData.defaultReps || 10);
       setDefaultDuration(initialData.defaultDuration || 60);
+      setTracksDistance(initialData.tracksDistance || false);
+      setDefaultDistance(initialData.defaultDistance || 20);
+      setDefaultDistanceUnit(initialData.defaultDistanceUnit || "m");
       setDescription(initialData.description || "");
     }
   }, [isOpen, initialData]);
@@ -82,6 +97,9 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       defaultSets,
       defaultReps: trackingType === "reps" ? defaultReps : undefined,
       defaultDuration: trackingType === "seconds" ? defaultDuration : undefined,
+      tracksDistance,
+      defaultDistance: tracksDistance ? defaultDistance : undefined,
+      defaultDistanceUnit: tracksDistance ? defaultDistanceUnit : undefined,
       description: description || undefined,
     });
   };
@@ -270,6 +288,71 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl border-2 border-zinc-200 focus:border-orange-500 outline-none resize-none"
                 />
+              </div>
+
+              {/* Track Distance Toggle */}
+              <div>
+                <label className="text-sm font-bold text-zinc-700 uppercase tracking-wider mb-2 block">
+                  Distance Tracking (Optional)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setTracksDistance(!tracksDistance)}
+                  className={`w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${
+                    tracksDistance
+                      ? "bg-blue-500 text-white shadow-lg"
+                      : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                    tracksDistance ? "bg-white border-white" : "border-zinc-400"
+                  }`}>
+                    {tracksDistance && <span className="text-blue-500 text-xs">✓</span>}
+                  </span>
+                  Track Distance (for cardio, carries, etc.)
+                </button>
+                
+                {/* Distance inputs - only show when tracking distance */}
+                {tracksDistance && (
+                  <div className="mt-3 p-4 bg-blue-50 rounded-xl space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold text-blue-700 mb-1 block">
+                          Default Distance
+                        </label>
+                        <input
+                          type="number"
+                          value={defaultDistance}
+                          onChange={(e) => setDefaultDistance(parseFloat(e.target.value) || 0)}
+                          min="0"
+                          step="0.1"
+                          className="w-full px-3 py-2 rounded-lg border-2 border-blue-200 focus:border-blue-500 outline-none font-semibold text-center"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-blue-700 mb-1 block">
+                          Unit
+                        </label>
+                        <div className="flex gap-1">
+                          {["m", "km", "miles"].map((unit) => (
+                            <button
+                              key={unit}
+                              type="button"
+                              onClick={() => setDefaultDistanceUnit(unit)}
+                              className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                                defaultDistanceUnit === unit
+                                  ? "bg-blue-500 text-white"
+                                  : "bg-white text-blue-700 hover:bg-blue-100"
+                              }`}
+                            >
+                              {unit}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Submit Button */}

@@ -74,6 +74,8 @@ export async function PUT(
                         reps: ex.reps || null,
                         duration: ex.duration || null,
                         weight: ex.weight || null,
+                        distance: ex.distance || null,
+                        distanceUnit: ex.distanceUnit || null,
                         restSeconds: ex.restSeconds,
                     })),
                 });

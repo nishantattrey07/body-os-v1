@@ -26,6 +26,9 @@ export async function PUT(
             defaultSets,
             defaultReps,
             defaultDuration,
+            tracksDistance,
+            defaultDistance,
+            defaultDistanceUnit,
             description,
         } = body;
 
@@ -88,6 +91,9 @@ export async function PUT(
                 defaultSets,
                 defaultReps: trackingType === "reps" ? defaultReps : null,
                 defaultDuration: trackingType === "seconds" ? defaultDuration : null,
+                tracksDistance: tracksDistance || false,
+                defaultDistance: tracksDistance ? defaultDistance : null,
+                defaultDistanceUnit: tracksDistance ? defaultDistanceUnit : "m",
                 description: description || null,
             },
         });
