@@ -52,7 +52,6 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
   const [defaultDuration, setDefaultDuration] = useState(initialData?.defaultDuration || 60);
   const [tracksDistance, setTracksDistance] = useState(initialData?.tracksDistance || false);
   const [defaultDistance, setDefaultDistance] = useState(initialData?.defaultDistance || 20);
-  const [defaultDistanceUnit, setDefaultDistanceUnit] = useState(initialData?.defaultDistanceUnit || "m");
   const [description, setDescription] = useState(initialData?.description || "");
 
   // Reset form when modal closes or initialData changes
@@ -69,7 +68,6 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       setDefaultDuration(60);
       setTracksDistance(false);
       setDefaultDistance(20);
-      setDefaultDistanceUnit("m");
       setDescription("");
     } else if (initialData) {
       // Set form data when editing
@@ -82,8 +80,8 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       setDefaultReps(initialData.defaultReps || 10);
       setDefaultDuration(initialData.defaultDuration || 60);
       setTracksDistance(initialData.tracksDistance || false);
+      
       setDefaultDistance(initialData.defaultDistance || 20);
-      setDefaultDistanceUnit(initialData.defaultDistanceUnit || "m");
       setDescription(initialData.description || "");
     }
   }, [isOpen, initialData]);
@@ -99,7 +97,7 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       defaultDuration: trackingType === "seconds" ? defaultDuration : undefined,
       tracksDistance,
       defaultDistance: tracksDistance ? defaultDistance : undefined,
-      defaultDistanceUnit: tracksDistance ? defaultDistanceUnit : undefined,
+      defaultDistanceUnit: tracksDistance ? "m" : undefined,
       description: description || undefined,
     });
   };
@@ -315,40 +313,20 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
                 {/* Distance inputs - only show when tracking distance */}
                 {tracksDistance && (
                   <div className="mt-3 p-4 bg-blue-50 rounded-xl space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                       <div>
                         <label className="text-xs font-semibold text-blue-700 mb-1 block">
-                          Default Distance
+                          Default Distance (meters)
                         </label>
                         <input
                           type="number"
                           value={defaultDistance}
                           onChange={(e) => setDefaultDistance(parseFloat(e.target.value) || 0)}
                           min="0"
-                          step="0.1"
+                          step="1"
+                          placeholder="e.g. 1000"
                           className="w-full px-3 py-2 rounded-lg border-2 border-blue-200 focus:border-blue-500 outline-none font-semibold text-center"
                         />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-blue-700 mb-1 block">
-                          Unit
-                        </label>
-                        <div className="flex gap-1">
-                          {["m", "km", "miles"].map((unit) => (
-                            <button
-                              key={unit}
-                              type="button"
-                              onClick={() => setDefaultDistanceUnit(unit)}
-                              className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-colors ${
-                                defaultDistanceUnit === unit
-                                  ? "bg-blue-500 text-white"
-                                  : "bg-white text-blue-700 hover:bg-blue-100"
-                              }`}
-                            >
-                              {unit}
-                            </button>
-                          ))}
-                        </div>
                       </div>
                     </div>
                   </div>

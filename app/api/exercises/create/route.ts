@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isValidDistanceUnit, toMeters } from "@/lib/utils/distance";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
             defaultDuration,
             tracksDistance,
             defaultDistance,
-            defaultDistanceUnit,
+            defaultDistanceUnit, // UI sends this for conversion
             description,
         } = body;
 
@@ -54,6 +55,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Validate distance unit if provided
+        if (tracksDistance && defaultDistance && defaultDistanceUnit) {
+            if (!isValidDistanceUnit(defaultDistanceUnit)) {
+                return NextResponse.json(
+                    { error: "Invalid distance unit. Must be 'm', 'km', or 'miles'" },
+                    { status: 400 }
+                );
+            }
+        }
+
         // Create exercise
         const exercise = await prisma.exercise.create({
             data: {
@@ -64,8 +75,10 @@ export async function POST(request: NextRequest) {
                 defaultReps: trackingType === "reps" ? defaultReps : null,
                 defaultDuration: trackingType === "seconds" ? defaultDuration : null,
                 tracksDistance: tracksDistance || false,
-                defaultDistance: tracksDistance ? defaultDistance : null,
-                defaultDistanceUnit: tracksDistance ? defaultDistanceUnit : "m",
+                // Convert to meters for storage
+                defaultDistance: tracksDistance && defaultDistance && defaultDistanceUnit
+                    ? toMeters(defaultDistance, defaultDistanceUnit)
+                    : null,
                 description: description || null,
                 isSystem: false,
                 userId: session.user.id,

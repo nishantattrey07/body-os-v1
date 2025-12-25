@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isValidDistanceUnit, toMeters } from "@/lib/utils/distance";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -81,6 +82,16 @@ export async function PUT(
             }
         }
 
+        // Validate distance unit if provided
+        if (tracksDistance && defaultDistance && defaultDistanceUnit) {
+            if (!isValidDistanceUnit(defaultDistanceUnit)) {
+                return NextResponse.json(
+                    { error: "Invalid distance unit. Must be 'm', 'km', or 'miles'" },
+                    { status: 400 }
+                );
+            }
+        }
+
         // Update exercise
         const updated = await prisma.exercise.update({
             where: { id },
@@ -92,8 +103,10 @@ export async function PUT(
                 defaultReps: trackingType === "reps" ? defaultReps : null,
                 defaultDuration: trackingType === "seconds" ? defaultDuration : null,
                 tracksDistance: tracksDistance || false,
-                defaultDistance: tracksDistance ? defaultDistance : null,
-                defaultDistanceUnit: tracksDistance ? defaultDistanceUnit : "m",
+                // Convert to meters for storage
+                defaultDistance: tracksDistance && defaultDistance && defaultDistanceUnit
+                    ? toMeters(defaultDistance, defaultDistanceUnit)
+                    : null,
                 description: description || null,
             },
         });

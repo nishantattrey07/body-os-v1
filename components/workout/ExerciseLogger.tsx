@@ -2,6 +2,8 @@
 
 import { BlockerPicker } from "@/components/blockers/BlockerPicker";
 import { useLogSet } from "@/lib/mutations/useLogSet";
+import { DistanceUnit, fromMeters, toMeters, UNIT_INCREMENTS, UNIT_LABELS } from "@/lib/utils/distance";
+import { getPreferredDistanceUnit, setPreferredDistanceUnit } from "@/lib/utils/preferences";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -38,8 +40,12 @@ export function ExerciseLogger({
   const [weight, setWeight] = useState(exercise.targetWeight || 0);
   // Distance tracking (optional, if exercise.tracksDistance)
   const tracksDistance = exercise.tracksDistance || false;
-  const [distance, setDistance] = useState(exercise.targetDistance || 0);
-  const distanceUnit = exercise.targetDistanceUnit || "m";
+  // Store distance in DISPLAY UNIT (convert to meters only on save)
+  const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>(() => getPreferredDistanceUnit());
+  const [distance, setDistance] = useState(() => {
+    const targetMeters = exercise.targetDistance || 0;
+    return fromMeters(targetMeters, getPreferredDistanceUnit());
+  });
   const [rpe, setRPE] = useState(7);
   const [painLevel, setPainLevel] = useState(0);
   const [selectedBlockerId, setSelectedBlockerId] = useState<string | null>(
@@ -82,7 +88,9 @@ export function ExerciseLogger({
   useEffect(() => {
     setValue(isTimeBased ? (exercise.defaultDuration || 60) : (exercise.defaultReps || 10));
     setWeight(exercise.targetWeight || 0);
-    setDistance(exercise.targetDistance || 0);
+    // Convert from meters to current display unit
+    const targetMeters = exercise.targetDistance || 0;
+    setDistance(fromMeters(targetMeters, distanceUnit));
     setRPE(7);
     setPainLevel(0);
     setSelectedBlockerId(null);
@@ -90,7 +98,7 @@ export function ExerciseLogger({
     setRestTimerMax(0);
     setRestStartTime(null);
     isLoggingRef.current = false;
-  }, [exercise.id, isTimeBased]);
+  }, [exercise.id, isTimeBased, distanceUnit]);
 
   const handleLogSet = async () => {
     
@@ -136,9 +144,11 @@ export function ExerciseLogger({
       actualSeconds: isTimeBased ? value : undefined,
       targetWeight: exercise.targetWeight || undefined,
       actualWeight: weight,  // Local state 'weight' maps to DB 'actualWeight'
+      weightUnit: "kg",
       targetDistance: tracksDistance ? (exercise.targetDistance || undefined) : undefined,
-      actualDistance: tracksDistance ? distance : undefined,
-      distanceUnit: tracksDistance ? distanceUnit : undefined,
+      // Convert display value to meters for storage
+      actualDistance: tracksDistance && distance ? toMeters(distance, distanceUnit) : undefined,
+      distanceUnit: "m", // Always store as meters
       rpe,
       painLevel,
       restTaken: actualRestTaken,
@@ -426,35 +436,67 @@ export function ExerciseLogger({
                 Distance
               </p>
               {exercise.targetDistance && exercise.targetDistance > 0 && (
-                <p className="text-xs text-blue-400">Target: {exercise.targetDistance} {distanceUnit}</p>
+                <p className="text-xs text-blue-400">
+                  Target: {fromMeters(exercise.targetDistance, distanceUnit).toFixed(distanceUnit === 'm' ? 0 : 1)} {UNIT_LABELS[distanceUnit]}
+                </p>
               )}
             </div>
-            <span className="text-lg font-bold text-blue-600">{distance} {distanceUnit}</span>
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-1.5 bg-blue-50 rounded-lg border-2 border-blue-200 min-w-[80px] text-right">
+                <span className="text-lg font-bold text-blue-600 tabular-nums">
+                  {distanceUnit === 'm' ? distance.toFixed(0) : distance.toFixed(1)}
+                </span>
+              </div>
+              {/* Unit toggle buttons instead of native select */}
+              <div className="flex rounded-lg border-2 border-blue-200 overflow-hidden">
+                {(['m', 'km', 'miles'] as const).map((unit) => (
+                  <button
+                    key={unit}
+                    type="button"
+                    onClick={() => {
+                      if (unit === distanceUnit) return;
+                      const meters = toMeters(distance, distanceUnit);
+                      const newValue = fromMeters(meters, unit);
+                      setDistance(newValue);
+                      setDistanceUnit(unit);
+                      setPreferredDistanceUnit(unit);
+                    }}
+                    className={`px-2 py-1 text-xs font-bold transition-colors ${
+                      distanceUnit === unit
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-white text-blue-600 hover:bg-blue-50'
+                    }`}
+                  >
+                    {UNIT_LABELS[unit]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setDistance(Math.max(0, distance - 10))}
+              onClick={() => setDistance(Math.max(0, distance - UNIT_INCREMENTS[distanceUnit].large))}
               className="flex-1 h-10 rounded-xl bg-zinc-200 hover:bg-zinc-300 font-bold text-zinc-700 transition-colors"
             >
-              -10
+              -{UNIT_INCREMENTS[distanceUnit].large}
             </button>
             <button
-              onClick={() => setDistance(Math.max(0, distance - 1))}
+              onClick={() => setDistance(Math.max(0, distance - UNIT_INCREMENTS[distanceUnit].small))}
               className="flex-1 h-10 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-bold text-zinc-700 transition-colors"
             >
-              -1
+              -{UNIT_INCREMENTS[distanceUnit].small}
             </button>
             <button
-              onClick={() => setDistance(distance + 1)}
+              onClick={() => setDistance(distance + UNIT_INCREMENTS[distanceUnit].small)}
               className="flex-1 h-10 rounded-xl bg-blue-100 hover:bg-blue-200 font-bold text-blue-700 transition-colors"
             >
-              +1
+              +{UNIT_INCREMENTS[distanceUnit].small}
             </button>
             <button
-              onClick={() => setDistance(distance + 10)}
+              onClick={() => setDistance(distance + UNIT_INCREMENTS[distanceUnit].large)}
               className="flex-1 h-10 rounded-xl bg-blue-500 hover:bg-blue-600 font-bold text-white transition-colors"
             >
-              +10
+              +{UNIT_INCREMENTS[distanceUnit].large}
             </button>
           </div>
         </div>

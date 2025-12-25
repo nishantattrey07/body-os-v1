@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { toMeters } from "@/lib/utils/distance";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -74,8 +75,10 @@ export async function PUT(
                         reps: ex.reps || null,
                         duration: ex.duration || null,
                         weight: ex.weight || null,
-                        distance: ex.distance || null,
-                        distanceUnit: ex.distanceUnit || null,
+                        // Convert distance to meters if unit provided
+                        distance: ex.distance && ex.distanceUnit
+                            ? toMeters(ex.distance, ex.distanceUnit)
+                            : (ex.distance || null),
                         restSeconds: ex.restSeconds,
                     })),
                 });

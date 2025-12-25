@@ -1,12 +1,13 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { toMeters } from "@/lib/utils/distance";
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * POST /api/workout/sets
  * Log a set for an exercise
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
         const session = await auth();
         if (!session?.user?.id) {
@@ -62,9 +63,11 @@ export async function POST(request: Request) {
                 targetWeight: sessionExercise.targetWeight,
                 actualWeight,
                 weightUnit,
-                targetDistance: sessionExercise.targetDistance,
-                actualDistance,
-                distanceUnit,
+                targetDistance: sessionExercise.targetDistance, // Already in meters
+                // Convert actualDistance to meters
+                actualDistance: actualDistance && distanceUnit
+                    ? toMeters(actualDistance, distanceUnit)
+                    : actualDistance,
                 rpe,
                 painLevel,
                 painLocation,

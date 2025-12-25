@@ -74,7 +74,6 @@ export default async function RoutineBuilderPage({ params }: PageProps) {
       defaultDuration: true,
       tracksDistance: true,
       defaultDistance: true,
-      defaultDistanceUnit: true,
     },
   });
 

@@ -2,6 +2,7 @@
 
 import { useSaveRoutineExercises } from "@/lib/mutations/useSaveRoutineExercises";
 import { useExercises, useRoutine } from "@/lib/queries/useRoutine";
+import { DistanceUnit } from "@/lib/utils/distance";
 import { motion, Reorder } from "framer-motion";
 import { ArrowLeft, GripVertical, Plus, Save, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -27,8 +28,8 @@ interface RoutineExercise {
   reps: number | null;
   duration: number | null;
   weight: number | null;
-  distance: number | null;
-  distanceUnit: string | null;
+  distance: number | null;  // Stored in meters in DB
+  distanceUnit?: DistanceUnit; // Display unit (UI only, not saved to DB)
   restSeconds: number;
   Exercise: Exercise;
 }
@@ -95,8 +96,9 @@ export function RoutineBuilderClient({
       reps: ex.reps,
       duration: ex.duration,
       weight: ex.weight,
+      // Distance is already in meters, send with 'm' unit
       distance: ex.distance,
-      distanceUnit: ex.distanceUnit,
+      distanceUnit: 'm',
       restSeconds: ex.restSeconds,
     }));
 
@@ -110,15 +112,17 @@ export function RoutineBuilderClient({
   };
 
   const handleAddExercise = (exercise: Exercise) => {
+    const tempId = `temp-${Date.now()}`;
+    
     const newExercise: RoutineExercise = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       exerciseId: exercise.id,
       sets: exercise.defaultSets,
       reps: exercise.trackingType === "seconds" ? null : (exercise.defaultReps || 10),
       duration: exercise.trackingType === "seconds" ? (exercise.defaultDuration || 60) : null,
       weight: null,
+      // defaultDistance is already in meters from DB
       distance: exercise.tracksDistance ? (exercise.defaultDistance || null) : null,
-      distanceUnit: exercise.tracksDistance ? (exercise.defaultDistanceUnit || "m") : null,
       restSeconds: 90,
       Exercise: exercise,
     };
@@ -217,11 +221,11 @@ export function RoutineBuilderClient({
                   <div className="flex-1">
                     <h3 className="font-bold text-zinc-900 mb-3">{re.Exercise.name}</h3>
 
-                    {/* Configuration Grid - dynamic cols based on tracksDistance */}
-                    <div className={`grid gap-2 ${re.Exercise.tracksDistance ? 'grid-cols-5' : 'grid-cols-4'}`}>
+                    {/* Configuration Grid - always 4 cols: SETS, SEC/REPS, WT, REST */}
+                    <div className="grid gap-2 grid-cols-4">
                       {/* Sets */}
                       <div>
-                        <label className={`text-xs uppercase font-bold block mb-1 ${re.Exercise.tracksDistance ? 'text-zinc-500 tracking-tight' : 'text-zinc-500 tracking-wider'}`}>
+                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
                           Sets
                         </label>
                         <input
@@ -231,13 +235,13 @@ export function RoutineBuilderClient({
                             handleUpdateConfig(re.id, "sets", parseInt(e.target.value) || 1)
                           }
                           min="1"
-                          className={`w-full rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center ${re.Exercise.tracksDistance ? 'px-2 py-1.5 text-sm' : 'px-3 py-2'}`}
+                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
                         />
                       </div>
 
                       {/* Reps or Duration */}
                       <div>
-                        <label className={`text-xs uppercase font-bold block mb-1 ${re.Exercise.tracksDistance ? 'text-zinc-500 tracking-tight' : 'text-zinc-500 tracking-wider'}`}>
+                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
                           {re.Exercise.trackingType === "seconds" ? "Sec" : "Reps"}
                         </label>
                         <input
@@ -252,14 +256,14 @@ export function RoutineBuilderClient({
                             handleUpdateConfig(re.id, field, parseInt(e.target.value) || 1);
                           }}
                           min="1"
-                          className={`w-full rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center ${re.Exercise.tracksDistance ? 'px-2 py-1.5 text-sm' : 'px-3 py-2'}`}
+                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
                         />
                       </div>
 
                       {/* Weight */}
                       <div>
-                        <label className={`text-xs uppercase font-bold block mb-1 ${re.Exercise.tracksDistance ? 'text-zinc-500 tracking-tight' : 'text-zinc-500 tracking-wider'}`}>
-                          {re.Exercise.tracksDistance ? "Wt" : "Weight"}
+                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                          Weight
                         </label>
                         <input
                           type="number"
@@ -271,34 +275,13 @@ export function RoutineBuilderClient({
                           }}
                           min="0"
                           step="0.5"
-                          className={`w-full rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center ${re.Exercise.tracksDistance ? 'px-2 py-1.5 text-sm' : 'px-3 py-2'}`}
+                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
                         />
                       </div>
 
-                      {/* Distance - only show if exercise tracks distance */}
-                      {re.Exercise.tracksDistance && (
-                        <div>
-                          <label className="text-xs text-blue-600 uppercase tracking-tight font-bold block mb-1">
-                            Dist
-                          </label>
-                          <input
-                            type="number"
-                            value={re.distance ?? ""}
-                            placeholder={re.distanceUnit || "m"}
-                            onChange={(e) => {
-                              const val = e.target.value ? parseFloat(e.target.value) : null;
-                              handleUpdateConfig(re.id, "distance", val);
-                            }}
-                            min="0"
-                            step="1"
-                            className="w-full px-2 py-1.5 text-sm rounded-lg border-2 border-blue-200 focus:border-blue-500 outline-none font-bold text-center"
-                          />
-                        </div>
-                      )}
-
                       {/* Rest */}
                       <div>
-                        <label className={`text-xs uppercase font-bold block mb-1 ${re.Exercise.tracksDistance ? 'text-zinc-500 tracking-tight' : 'text-zinc-500 tracking-wider'}`}>
+                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
                           Rest
                         </label>
                         <input
@@ -308,10 +291,39 @@ export function RoutineBuilderClient({
                             handleUpdateConfig(re.id, "restSeconds", parseInt(e.target.value) || 0)
                           }
                           min="0"
-                          className={`w-full rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center ${re.Exercise.tracksDistance ? 'px-2 py-1.5 text-sm' : 'px-3 py-2'}`}
+                          step="5"
+                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
                         />
                       </div>
                     </div>
+
+                    {/* Distance Row - only show if exercise tracks distance */}
+                    {re.Exercise.tracksDistance && (
+                      <div className="mt-3 pt-3 border-t border-zinc-100">
+                        <label className="text-xs text-blue-600 uppercase tracking-wide font-bold block mb-2">
+                          Distance
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 relative">
+                            <input
+                              type="number"
+                              value={re.distance ?? ""}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = e.target.value ? parseFloat(e.target.value) : null;
+                                handleUpdateConfig(re.id, "distance", val);
+                              }}
+                              min="0"
+                              step="1"
+                              className="w-full px-3 py-2 pr-8 rounded-lg border-2 border-blue-200 focus:border-blue-500 outline-none font-bold text-center"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-blue-400 pointer-events-none">
+                              m
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Delete Button */}

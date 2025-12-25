@@ -78,7 +78,6 @@ export async function GET(request: NextRequest) {
                 defaultDuration: true,
                 tracksDistance: true,
                 defaultDistance: true,
-                defaultDistanceUnit: true,
                 description: true,
                 isSystem: true,
             },
