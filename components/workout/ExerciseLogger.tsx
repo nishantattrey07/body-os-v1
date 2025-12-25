@@ -22,12 +22,24 @@ interface ExerciseLoggerProps {
   exercise: any;
   sessionExerciseId?: string;
   onComplete: (setsCount: number) => void;
+  onSetComplete?: (setNumber: number, isLastSet: boolean) => void;  // Called after EVERY set
+  onAfterRest?: () => void;  // Called after rest timer for superset loop-back
+  nextExerciseName?: string;  // For superset 'Up Next' indicator
+  isInSuperset?: boolean;     // Shows superset badge
+  isSupersetTransition?: boolean;  // If true, skip rest timer and call onSetComplete
+  isLastOfSuperset?: boolean;  // If true, after rest timer, call onAfterRest for loop-back
 }
 
 export function ExerciseLogger({
   exercise,
   sessionExerciseId,
   onComplete,
+  onSetComplete,
+  onAfterRest,
+  nextExerciseName,
+  isInSuperset = false,
+  isSupersetTransition = false,
+  isLastOfSuperset = false,
 }: ExerciseLoggerProps) {
   // Determine if this is a time-based exercise (seconds) or reps-based
   const isTimeBased = exercise.trackingType === "seconds";
@@ -169,23 +181,60 @@ export function ExerciseLogger({
 
     // OPTIMISTIC UPDATE: Update UI immediately
     if (!isLastSet) {
-      setCurrentSet((prev) => prev + 1);
+      // Check if this is a superset transition (should move to next exercise)
+      if (isSupersetTransition && onSetComplete) {
+        // Let parent handle navigation - don't show rest timer
+        onSetComplete(previousSet, false);
+        // Don't increment set here - we'll come back to this exercise later
+      } else if (isLastOfSuperset && onAfterRest) {
+        // Last exercise of superset - FIRST track this set, then show rest timer
+        // This is critical! Without this, C's sets aren't tracked and allSupersetDone fails
+        if (onSetComplete) {
+          onSetComplete(previousSet, false);
+        }
+        
+        // Now show rest timer, then call onAfterRest to loop back
+        const restTime =
+          exercise.defaultRestSeconds !== undefined ? exercise.defaultRestSeconds : 60;
+        if (restTime > 0) {
+          setRestTimerMax(restTime);
+          setRestTimer(restTime);
+          setRestStartTime(new Date());
+          const timer = setInterval(() => {
+            setRestTimer((prev) => {
+              if (prev === null || prev <= 1) {
+                clearInterval(timer);
+                // Defer to next tick to avoid setState-in-render error
+                setTimeout(() => onAfterRest(), 0);
+                return null;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        } else {
+          // No rest needed, defer and loop back
+          setTimeout(() => onAfterRest(), 0);
+        }
+      } else {
+        // Normal flow - continue with sets of this exercise
+        setCurrentSet((prev) => prev + 1);
 
-      const restTime =
-        exercise.defaultRestSeconds !== undefined ? exercise.defaultRestSeconds : 60;
-      if (restTime > 0) {
-        setRestTimerMax(restTime);
-        setRestTimer(restTime);
-        setRestStartTime(new Date());  // Track rest start for next set
-        const timer = setInterval(() => {
-          setRestTimer((prev) => {
-            if (prev === null || prev <= 1) {
-              clearInterval(timer);
-              return null;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+        const restTime =
+          exercise.defaultRestSeconds !== undefined ? exercise.defaultRestSeconds : 60;
+        if (restTime > 0) {
+          setRestTimerMax(restTime);
+          setRestTimer(restTime);
+          setRestStartTime(new Date());  // Track rest start for next set
+          const timer = setInterval(() => {
+            setRestTimer((prev) => {
+              if (prev === null || prev <= 1) {
+                clearInterval(timer);
+                return null;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        }
       }
     } else {
       // For last set, mark exercise as completed
@@ -195,13 +244,22 @@ export function ExerciseLogger({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionExerciseId }),
         }).then(() => {
+          // Notify of set completion for superset logic, THEN complete the exercise
+          if (onSetComplete) {
+            onSetComplete(previousSet, true);
+          }
           onComplete(totalSets);
         }).catch((error) => {
           console.error("[ExerciseLogger] Failed to mark exercise complete:", error);
-          // Still call onComplete even if API fails
+          if (onSetComplete) {
+            onSetComplete(previousSet, true);
+          }
           onComplete(totalSets);
         });
       } else {
+        if (onSetComplete) {
+          onSetComplete(previousSet, true);
+        }
         onComplete(totalSets);
       }
     }
@@ -246,10 +304,24 @@ export function ExerciseLogger({
 
   return (
     <div className="space-y-4 pb-6">
+      {/* Superset 'Up Next' Indicator */}
+      {nextExerciseName && isInSuperset && (
+        <div className="text-center">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
+            🔗 Paired with: {nextExerciseName}
+          </span>
+        </div>
+      )}
+
       {/* Exercise Header - Compact */}
       <div className="text-center">
         <h2 className="text-3xl font-bold font-heading uppercase tracking-tight text-foreground">
           {exercise.name}
+          {isInSuperset && (
+            <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium normal-case tracking-normal">
+              Superset
+            </span>
+          )}
         </h2>
         
         {/* Set Progress - compact without card */}
@@ -676,6 +748,16 @@ export function ExerciseLogger({
               <>
                 <CheckCircle size={20} />
                 Complete Exercise
+              </>
+            ) : isSupersetTransition && currentSet < totalSets ? (
+              <>
+                <Check size={20} strokeWidth={3} />
+                Log & Next Exercise →
+              </>
+            ) : isLastOfSuperset && currentSet < totalSets ? (
+              <>
+                <Check size={20} strokeWidth={3} />
+                Log & Rest ☕
               </>
             ) : (
               <>

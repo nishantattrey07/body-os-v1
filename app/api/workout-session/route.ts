@@ -71,6 +71,7 @@ export async function POST(request: Request) {
                         targetWeight: re.weight,
                         targetDistance: re.distance, // Already in meters
                         restSeconds: re.restSeconds,
+                        supersetId: re.supersetId, // Copy superset grouping
                     })),
                 },
             },

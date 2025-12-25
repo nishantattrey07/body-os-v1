@@ -80,6 +80,7 @@ export async function PUT(
                             ? toMeters(ex.distance, ex.distanceUnit)
                             : (ex.distance || null),
                         restSeconds: ex.restSeconds,
+                        supersetId: ex.supersetId || null,
                     })),
                 });
             }

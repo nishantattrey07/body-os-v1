@@ -201,6 +201,7 @@ model RoutineExercise {
   weight         Float?         // Target weight for this exercise
   distance       Float?         // Target distance in meters
   restSeconds    Int            @default(90)
+  supersetId     String?        // Exercises with same ID are grouped as superset
   routineId      String
   exerciseId     String
   Exercise       Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
@@ -219,6 +220,7 @@ model SessionExercise {
   targetWeight       Float?         // Planned weight (copied from RoutineExercise.weight)
   targetDistance     Float?         // Planned distance in meters
   restSeconds        Int            @default(90)
+  supersetId         String?        // Copied from RoutineExercise
   startedAt          DateTime?
   completedAt        DateTime?
   skipped            Boolean        @default(false)

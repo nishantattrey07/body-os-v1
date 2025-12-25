@@ -4,7 +4,7 @@ import { useSaveRoutineExercises } from "@/lib/mutations/useSaveRoutineExercises
 import { useExercises, useRoutine } from "@/lib/queries/useRoutine";
 import { DistanceUnit } from "@/lib/utils/distance";
 import { motion, Reorder } from "framer-motion";
-import { ArrowLeft, GripVertical, Plus, Save, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, GripVertical, Link2, Link2Off, Plus, Save, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -31,6 +31,7 @@ interface RoutineExercise {
   distance: number | null;  // Stored in meters in DB
   distanceUnit?: DistanceUnit; // Display unit (UI only, not saved to DB)
   restSeconds: number;
+  supersetId?: string | null;  // Exercises with same ID are grouped
   Exercise: Exercise;
 }
 
@@ -100,6 +101,7 @@ export function RoutineBuilderClient({
       distance: ex.distance,
       distanceUnit: 'm',
       restSeconds: ex.restSeconds,
+      supersetId: ex.supersetId || null,
     }));
 
     console.log(" 🔥 SAVING ROUTINE EXERCISES:", exerciseConfigs);
@@ -124,6 +126,7 @@ export function RoutineBuilderClient({
       // defaultDistance is already in meters from DB
       distance: exercise.tracksDistance ? (exercise.defaultDistance || null) : null,
       restSeconds: 90,
+      supersetId: null,
       Exercise: exercise,
     };
 
@@ -134,7 +137,65 @@ export function RoutineBuilderClient({
   };
 
   const handleRemoveExercise = (id: string) => {
+    // Also unlink from any superset
+    const exerciseToRemove = localExercises.find((ex) => ex.id === id);
+    if (exerciseToRemove?.supersetId) {
+      // Count how many exercises share this supersetId
+      const sharedCount = localExercises.filter((ex) => ex.supersetId === exerciseToRemove.supersetId).length;
+      // If only 2 left (including this one), clear supersetId from the other
+      if (sharedCount === 2) {
+        setLocalExercises((prev) =>
+          prev
+            .filter((ex) => ex.id !== id)
+            .map((ex) =>
+              ex.supersetId === exerciseToRemove.supersetId ? { ...ex, supersetId: null } : ex
+            )
+        );
+        setIsDirty(true);
+        return;
+      }
+    }
     setLocalExercises(localExercises.filter((ex) => ex.id !== id));
+    setIsDirty(true);
+  };
+
+  // Toggle superset link between current exercise and next one
+  const handleToggleSuperset = (currentIdx: number) => {
+    const current = localExercises[currentIdx];
+    const next = localExercises[currentIdx + 1];
+    if (!next) return;
+
+    // Check if already linked
+    const isLinked = current.supersetId && current.supersetId === next.supersetId;
+
+    if (isLinked) {
+      // Unlink: remove supersetId from both if only 2 in group
+      const groupCount = localExercises.filter((ex) => ex.supersetId === current.supersetId).length;
+      if (groupCount === 2) {
+        // Clear supersetId from both
+        setLocalExercises((prev) =>
+          prev.map((ex) =>
+            ex.supersetId === current.supersetId ? { ...ex, supersetId: null } : ex
+          )
+        );
+      } else {
+        // Just unlink next from group
+        setLocalExercises((prev) =>
+          prev.map((ex, idx) => (idx === currentIdx + 1 ? { ...ex, supersetId: null } : ex))
+        );
+      }
+    } else {
+      // Link: assign same supersetId to current and next
+      const newSupersetId = current.supersetId || `superset-${Date.now()}`;
+      setLocalExercises((prev) =>
+        prev.map((ex, idx) => {
+          if (idx === currentIdx || idx === currentIdx + 1) {
+            return { ...ex, supersetId: newSupersetId };
+          }
+          return ex;
+        })
+      );
+    }
     setIsDirty(true);
   };
 
@@ -204,138 +265,184 @@ export function RoutineBuilderClient({
           </div>
         ) : (
           <Reorder.Group axis="y" values={localExercises} onReorder={handleReorder}>
-            {localExercises.map((re, idx) => (
-              <Reorder.Item
-                key={re.id}
-                value={re}
-                className="bg-white rounded-2xl border-2 border-zinc-100 p-4 shadow-sm mb-3 touch-none"
-              >
-                <div className="flex items-start gap-3">
-                  {/* Drag Handle */}
-                  <div className="flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing">
-                    <GripVertical size={20} className="text-zinc-300" />
-                    <span className="text-sm font-bold text-zinc-400">{idx + 1}</span>
-                  </div>
-
-                  {/* Exercise Info */}
-                  <div className="flex-1">
-                    <h3 className="font-bold text-zinc-900 mb-3">{re.Exercise.name}</h3>
-
-                    {/* Configuration Grid - always 4 cols: SETS, SEC/REPS, WT, REST */}
-                    <div className="grid gap-2 grid-cols-4">
-                      {/* Sets */}
-                      <div>
-                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
-                          Sets
-                        </label>
-                        <input
-                          type="number"
-                          value={re.sets}
-                          onChange={(e) =>
-                            handleUpdateConfig(re.id, "sets", parseInt(e.target.value) || 1)
-                          }
-                          min="1"
-                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
-                        />
+            {localExercises.map((re, idx) => {
+              const isInSuperset = !!re.supersetId;
+              const nextEx = localExercises[idx + 1];
+              const isLinkedToNext = re.supersetId && nextEx?.supersetId === re.supersetId;
+              
+              return (
+                <div key={re.id}>
+                  <Reorder.Item
+                    value={re}
+                    className={`bg-white rounded-2xl border-2 p-4 shadow-sm touch-none ${
+                      isInSuperset 
+                        ? 'border-l-4 border-l-blue-500 border-zinc-100' 
+                        : 'border-zinc-100'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Drag Handle */}
+                      <div className="flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing">
+                        <GripVertical size={20} className="text-zinc-300" />
+                        <span className={`text-sm font-bold ${isInSuperset ? 'text-blue-500' : 'text-zinc-400'}`}>
+                          {idx + 1}
+                        </span>
                       </div>
 
-                      {/* Reps or Duration */}
-                      <div>
-                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
-                          {re.Exercise.trackingType === "seconds" ? "Sec" : "Reps"}
-                        </label>
-                        <input
-                          type="number"
-                          value={
-                            re.Exercise.trackingType === "seconds"
-                              ? re.duration ?? 60
-                              : re.reps ?? 10
-                          }
-                          onChange={(e) => {
-                            const field = re.Exercise.trackingType === "seconds" ? "duration" : "reps";
-                            handleUpdateConfig(re.id, field, parseInt(e.target.value) || 1);
-                          }}
-                          min="1"
-                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
-                        />
-                      </div>
+                      {/* Exercise Info */}
+                      <div className="flex-1">
+                        <h3 className="font-bold text-zinc-900 mb-3">
+                          {re.Exercise.name}
+                          {isInSuperset && (
+                            <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                              Superset
+                            </span>
+                          )}
+                        </h3>
 
-                      {/* Weight */}
-                      <div>
-                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
-                          Weight
-                        </label>
-                        <input
-                          type="number"
-                          value={re.weight ?? ""}
-                          placeholder="kg"
-                          onChange={(e) => {
-                            const val = e.target.value ? parseFloat(e.target.value) : null;
-                            handleUpdateConfig(re.id, "weight", val);
-                          }}
-                          min="0"
-                          step="0.5"
-                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
-                        />
-                      </div>
-
-                      {/* Rest */}
-                      <div>
-                        <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
-                          Rest
-                        </label>
-                        <input
-                          type="number"
-                          value={re.restSeconds}
-                          onChange={(e) =>
-                            handleUpdateConfig(re.id, "restSeconds", parseInt(e.target.value) || 0)
-                          }
-                          min="0"
-                          step="5"
-                          className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Distance Row - only show if exercise tracks distance */}
-                    {re.Exercise.tracksDistance && (
-                      <div className="mt-3 pt-3 border-t border-zinc-100">
-                        <label className="text-xs text-blue-600 uppercase tracking-wide font-bold block mb-2">
-                          Distance
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 relative">
+                        {/* Configuration Grid - always 4 cols: SETS, SEC/REPS, WT, REST */}
+                        <div className="grid gap-2 grid-cols-4">
+                          {/* Sets */}
+                          <div>
+                            <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                              Sets
+                            </label>
                             <input
                               type="number"
-                              value={re.distance ?? ""}
-                              placeholder="0"
+                              value={re.sets}
+                              onChange={(e) =>
+                                handleUpdateConfig(re.id, "sets", parseInt(e.target.value) || 1)
+                              }
+                              min="1"
+                              className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
+                            />
+                          </div>
+
+                          {/* Reps or Duration */}
+                          <div>
+                            <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                              {re.Exercise.trackingType === "seconds" ? "Sec" : "Reps"}
+                            </label>
+                            <input
+                              type="number"
+                              value={
+                                re.Exercise.trackingType === "seconds"
+                                  ? re.duration ?? 60
+                                  : re.reps ?? 10
+                              }
+                              onChange={(e) => {
+                                const field = re.Exercise.trackingType === "seconds" ? "duration" : "reps";
+                                handleUpdateConfig(re.id, field, parseInt(e.target.value) || 1);
+                              }}
+                              min="1"
+                              className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
+                            />
+                          </div>
+
+                          {/* Weight */}
+                          <div>
+                            <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                              Weight
+                            </label>
+                            <input
+                              type="number"
+                              value={re.weight ?? ""}
+                              placeholder="kg"
                               onChange={(e) => {
                                 const val = e.target.value ? parseFloat(e.target.value) : null;
-                                handleUpdateConfig(re.id, "distance", val);
+                                handleUpdateConfig(re.id, "weight", val);
                               }}
                               min="0"
-                              step="1"
-                              className="w-full px-3 py-2 pr-8 rounded-lg border-2 border-blue-200 focus:border-blue-500 outline-none font-bold text-center"
+                              step="0.5"
+                              className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
                             />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-blue-400 pointer-events-none">
-                              m
-                            </span>
+                          </div>
+
+                          {/* Rest */}
+                          <div>
+                            <label className="text-xs text-zinc-500 uppercase tracking-wider font-bold block mb-1">
+                              Rest
+                            </label>
+                            <input
+                              type="number"
+                              value={re.restSeconds}
+                              onChange={(e) =>
+                                handleUpdateConfig(re.id, "restSeconds", parseInt(e.target.value) || 0)
+                              }
+                              min="0"
+                              step="5"
+                              className="w-full px-3 py-2 rounded-lg border-2 border-zinc-200 focus:border-orange-500 outline-none font-bold text-center"
+                            />
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleRemoveExercise(re.id)}
-                    className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                        {/* Distance Row - only show if exercise tracks distance */}
+                        {re.Exercise.tracksDistance && (
+                          <div className="mt-3 pt-3 border-t border-zinc-100">
+                            <label className="text-xs text-blue-600 uppercase tracking-wide font-bold block mb-2">
+                              Distance
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 relative">
+                                <input
+                                  type="number"
+                                  value={re.distance ?? ""}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    const val = e.target.value ? parseFloat(e.target.value) : null;
+                                    handleUpdateConfig(re.id, "distance", val);
+                                  }}
+                                  min="0"
+                                  step="1"
+                                  className="w-full px-3 py-2 pr-8 rounded-lg border-2 border-blue-200 focus:border-blue-500 outline-none font-bold text-center"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-blue-400 pointer-events-none">
+                                  m
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleRemoveExercise(re.id)}
+                        className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </Reorder.Item>
+                  
+                  {/* Link Button between exercises */}
+                  {idx < localExercises.length - 1 && (
+                    <div className="flex justify-center -my-1 relative z-10">
+                      <button
+                        onClick={() => handleToggleSuperset(idx)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${
+                          isLinkedToNext
+                            ? 'bg-blue-500 text-white hover:bg-blue-600'
+                            : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
+                        }`}
+                      >
+                        {isLinkedToNext ? (
+                          <>
+                            <Link2Off size={14} />
+                            Unlink
+                          </>
+                        ) : (
+                          <>
+                            <Link2 size={14} />
+                            Link as Superset
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </Reorder.Item>
-            ))}
+              );
+            })}
           </Reorder.Group>
         )}
       </div>
