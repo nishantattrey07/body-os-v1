@@ -140,6 +140,17 @@ export async function GET() {
                 SessionExercise: {
                     include: {
                         Exercise: true,
+                        SetLog: {
+                            select: {
+                                setNumber: true,
+                                actualReps: true,
+                                actualSeconds: true,
+                                weight: true,
+                            },
+                            orderBy: {
+                                setNumber: 'asc',
+                            },
+                        },
                     },
                     orderBy: {
                         order: 'asc',

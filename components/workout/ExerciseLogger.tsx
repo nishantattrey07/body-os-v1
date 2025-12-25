@@ -4,13 +4,13 @@ import { BlockerPicker } from "@/components/blockers/BlockerPicker";
 import { useLogSet } from "@/lib/mutations/useLogSet";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    AlertTriangle,
-    Check,
-    CheckCircle,
-    Loader2,
-    Minus,
-    Plus,
-    Timer,
+  AlertTriangle,
+  Check,
+  CheckCircle,
+  Loader2,
+  Minus,
+  Plus,
+  Timer,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -46,6 +46,8 @@ export function ExerciseLogger({
   const [restStartTime, setRestStartTime] = useState<Date | null>(null);
   const [currentSet, setCurrentSet] = useState(1);
   const [showTimer, setShowTimer] = useState(false);
+  const [completedSets, setCompletedSets] = useState<any[]>([]);
+  const [loadingSets, setLoadingSets] = useState(true);
   const totalSets = exercise.defaultSets || 3;
 
   // Use ref for synchronous lock to prevent race conditions
@@ -53,9 +55,26 @@ export function ExerciseLogger({
 
   const logSetMutation = useLogSet();
 
+  // Fetch existing sets on mount/exercise change
+  useEffect(() => {
+    if (sessionExerciseId) {
+      setLoadingSets(true);
+      fetch(`/api/workout/exercise/sets?sessionExerciseId=${sessionExerciseId}`)
+        .then(res => res.json())
+        .then(data => {
+          setCompletedSets(data.sets || []);
+          setCurrentSet(data.count + 1);
+          setLoadingSets(false);
+        })
+        .catch(error => {
+          console.error("[ExerciseLogger] Failed to fetch sets:", error);
+          setLoadingSets(false);
+        });
+    }
+  }, [sessionExerciseId]);
+
   // Reset state when exercise changes
   useEffect(() => {
-    setCurrentSet(1);
     setValue(isTimeBased ? (exercise.defaultDuration || 60) : (exercise.defaultReps || 10));
     setWeight(exercise.defaultWeight || 0);
     setRPE(7);
@@ -65,7 +84,7 @@ export function ExerciseLogger({
     setRestTimerMax(0);
     setRestStartTime(null);
     isLoggingRef.current = false;
-  }, [exercise.id, sessionExerciseId, isTimeBased]);
+  }, [exercise.id, isTimeBased]);
 
   const handleLogSet = async () => {
     
@@ -81,6 +100,13 @@ export function ExerciseLogger({
       return;
     }
     isLoggingRef.current = true;
+
+    // Check if this set already exists (additional safety layer)
+    if (completedSets.some(s => s.setNumber === currentSet)) {
+      toast.error("Set already logged");
+      isLoggingRef.current = false;
+      return;
+    }
 
     // Calculate actual rest taken
     let actualRestTaken: number | undefined;
@@ -142,8 +168,22 @@ export function ExerciseLogger({
         }, 1000);
       }
     } else {
-      // For last set, complete immediately
-      onComplete(totalSets);
+      // For last set, mark exercise as completed
+      if (sessionExerciseId) {
+        fetch("/api/workout/exercise/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionExerciseId }),
+        }).then(() => {
+          onComplete(totalSets);
+        }).catch((error) => {
+          console.error("[ExerciseLogger] Failed to mark exercise complete:", error);
+          // Still call onComplete even if API fails
+          onComplete(totalSets);
+        });
+      } else {
+        onComplete(totalSets);
+      }
     }
 
     toast.success(`Set ${previousSet} logged!`);
@@ -169,11 +209,9 @@ export function ExerciseLogger({
   };
 
   const handleButtonClick = () => {
-    if (isTimeBased) {
-      setShowTimer(true);
-    } else {
-      handleLogSet();
-    }
+    // Always log directly with current value
+    // "USE STOPWATCH TIMER" button is separate if user wants to use timer
+    handleLogSet();
   };
 
   const handleTimerComplete = (actualSeconds: number) => {
@@ -188,24 +226,14 @@ export function ExerciseLogger({
 
   return (
     <div className="space-y-4 pb-6">
-      {/* Exercise Header */}
+      {/* Exercise Header - Compact */}
       <div className="text-center">
-        <h2 className="text-3xl font-bold font-heading uppercase tracking-tight text-foreground mb-1">
+        <h2 className="text-3xl font-bold font-heading uppercase tracking-tight text-foreground">
           {exercise.name}
         </h2>
-        {exercise.muscleGroup && (
-          <p className="text-sm text-zinc-500 uppercase tracking-wide">
-            {exercise.muscleGroup}
-          </p>
-        )}
-      </div>
-
-      {/* Set Progress Tracker */}
-      <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl p-6 border border-orange-100">
-        <p className="text-center text-zinc-500 text-xs uppercase tracking-widest font-medium mb-4">
-          Your Progress
-        </p>
-        <div className="flex justify-center gap-3 mb-3">
+        
+        {/* Set Progress - compact without card */}
+        <div className="flex justify-center gap-3 mt-4 mb-3">
           {Array.from({ length: totalSets }, (_, i) => {
             const setNum = i + 1;
             const isCompleted = setNum < currentSet;
@@ -261,8 +289,8 @@ export function ExerciseLogger({
           })}
         </div>
 
-        {/* Target Badge */}
-        <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-100 rounded-full">
+        {/* Target Badge - centered */}
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-100 rounded-full">
           <span className="text-xs font-medium text-zinc-500">Target:</span>
           <span className="text-xs font-bold text-zinc-700">
             {isTimeBased ? exercise.defaultDuration : exercise.defaultReps}{" "}
@@ -304,6 +332,36 @@ export function ExerciseLogger({
             <Plus size={22} strokeWidth={3} />
           </motion.button>
         </div>
+        
+        {/* Quick adjust buttons - contextual for reps vs seconds */}
+        <div className="flex justify-center gap-2 mt-4">
+          {(isTimeBased ? [-30, -10, +10, +30] : [-5, -2, +2, +5]).map(delta => (
+            <button
+              key={delta}
+              onClick={() => setValue(Math.max(1, value + delta))}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                delta < 0 
+                  ? 'bg-red-50 text-red-600 hover:bg-red-100' 
+                  : 'bg-green-50 text-green-600 hover:bg-green-100'
+              }`}
+            >
+              {delta > 0 ? '+' : ''}{delta}{isTimeBased ? 's' : ''}
+            </button>
+          ))}
+        </div>
+
+        {/* Start Timer button for time-based exercises */}
+        {isTimeBased && (
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => setShowTimer(true)}
+            className="mt-4 w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-bold text-sm uppercase tracking-wider shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+          >
+            <Timer size={18} />
+            Use Stopwatch Timer
+          </motion.button>
+        )}
       </div>
 
       {/* Weight Input (if applicable) */}
@@ -311,11 +369,17 @@ export function ExerciseLogger({
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-zinc-100">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-bold text-zinc-700 uppercase tracking-wide">
-              Weight (kg)
+              Weight 
             </p>
             <span className="text-lg font-bold text-orange-600">{weight} kg</span>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => setWeight(Math.max(0, weight - 5))}
+              className="flex-1 h-10 rounded-xl bg-zinc-200 hover:bg-zinc-300 font-bold text-zinc-700 transition-colors"
+            >
+              -5
+            </button>
             <button
               onClick={() => setWeight(Math.max(0, weight - 2.5))}
               className="flex-1 h-10 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-bold text-zinc-700 transition-colors"
@@ -338,29 +402,43 @@ export function ExerciseLogger({
         </div>
       )}
 
-      {/* RPE Scale */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-zinc-100">
-        <div className="flex items-center justify-between mb-3">
+      {/* RPE Scale - Dynamic colors based on optimal training zones */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-zinc-100">
+        <div className="flex items-center justify-between">
           <p className="text-xs font-bold text-zinc-700 uppercase tracking-wide">
             RPE (Effort)
           </p>
-          <span className="text-lg font-bold text-blue-600">{rpe}/10</span>
+          <span className={`text-lg font-bold ${
+            rpe <= 4 ? 'text-amber-500' :      // Too easy
+            rpe <= 6 ? 'text-lime-500' :       // Moderate/beginner
+            rpe <= 8 ? 'text-green-600' :      // Optimal zone
+            rpe === 9 ? 'text-orange-500' :    // Very hard
+            'text-red-500'                      // Max/failure
+          }`}>{rpe}/10</span>
         </div>
+        
         <input
           type="range"
           min="1"
           max="10"
           value={rpe}
           onChange={(e) => setRPE(parseInt(e.target.value))}
-          className="w-full h-2 rounded-full appearance-none cursor-pointer bg-gradient-to-r from-green-200 via-yellow-200 to-red-300 
+          className={`w-full h-2 mt-3 rounded-full appearance-none cursor-pointer transition-all
             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 
-            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-md"
+            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md
+            ${
+              rpe <= 4 
+                ? 'bg-gradient-to-r from-amber-100 to-amber-300 [&::-webkit-slider-thumb]:bg-amber-500'
+                : rpe <= 6
+                  ? 'bg-gradient-to-r from-amber-200 via-lime-200 to-lime-300 [&::-webkit-slider-thumb]:bg-lime-500'
+                  : rpe <= 8
+                    ? 'bg-gradient-to-r from-lime-200 via-green-300 to-green-400 [&::-webkit-slider-thumb]:bg-green-600'
+                    : rpe === 9
+                      ? 'bg-gradient-to-r from-green-200 via-orange-200 to-orange-400 [&::-webkit-slider-thumb]:bg-orange-500'
+                      : 'bg-gradient-to-r from-orange-200 via-red-300 to-red-400 [&::-webkit-slider-thumb]:bg-red-500'
+            }
+          `}
         />
-        <div className="flex justify-between text-[10px] text-zinc-400 mt-1">
-          <span>Easy</span>
-          <span>Hard</span>
-          <span>Max</span>
-        </div>
       </div>
 
       {/* Pain Level */}
@@ -502,7 +580,7 @@ export function ExerciseLogger({
             ) : (
               <>
                 <Check size={20} strokeWidth={3} />
-                {isTimeBased ? `Start Timer` : `Log Set ${currentSet} →`}
+                Log Set {currentSet} →
               </>
             )}
           </motion.button>

@@ -252,6 +252,7 @@ model SetLog {
   PhysicalBlocker     PhysicalBlocker? @relation(fields: [aggravatedBlockerId], references: [id])
   SessionExercise     SessionExercise  @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
 
+  @@unique([sessionExerciseId, setNumber], name: "unique_set_per_exercise")
   @@index([completedAt])
   @@index([sessionExerciseId])
 }

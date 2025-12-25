@@ -417,9 +417,8 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
     if (stage === "select") return "Select Routine";
     if (stage === "warmup") return "Warmup";
     if (stage === "exercise") {
-      const exercises = sessionData?.session?.SessionExercise || [];
-      const currentExercise = exercises[currentExerciseIndex];
-      return currentExercise?.Exercise?.name || "Workout";
+      // Show routine name instead of exercise name
+      return sessionData?.session?.WorkoutRoutine?.name || "Workout";
     }
     return "Workout";
   };
@@ -655,15 +654,29 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
 
               return (
                 <>
-                  {/* Exercise Counter */}
-                  <div className="text-center mb-4">
-                    <p className="text-sm text-zinc-500 uppercase tracking-wide">
-                      Exercise {currentExerciseIndex + 1} of {exercises.length}
-                    </p>
+                  {/* Exercise Progress Bar */}
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-zinc-500">Exercise Progress</span>
+                      <span className="text-sm font-medium text-zinc-700">
+                        {currentExerciseIndex + 1} / {exercises.length}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-red-500 transition-all duration-300"
+                        style={{ 
+                          width: `${((currentExerciseIndex + 1) / exercises.length) * 100}%` 
+                        }}
+                      />
+                    </div>
                   </div>
 
                   <ExerciseLogger
-                    exercise={currentExercise.Exercise}
+                    exercise={{
+                      ...currentExercise.Exercise,
+                      defaultSets: currentExercise.targetSets,  // Override with session-specific count
+                    }}
                     sessionExerciseId={currentExercise.id}
                     onComplete={handleExerciseComplete}
                   />

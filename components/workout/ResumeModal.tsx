@@ -11,7 +11,14 @@ interface ResumeModalProps {
     SessionExercise: Array<{
       completedAt: Date | null;
       skipped: boolean;
+      targetSets: number;
       Exercise: { name: string };
+      SetLog: Array<{
+        setNumber: number;
+        actualReps?: number | null;
+        actualSeconds?: number | null;
+        weight: number;
+      }>;
     }>;
   };
   onResume: () => void;
@@ -119,6 +126,9 @@ export function ResumeModal({ session, onResume, onStartFresh, onAbandon }: Resu
                 </p>
                 <p className="text-sm font-semibold text-zinc-900">
                   {currentExercise.Exercise.name}
+                </p>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Set {currentExercise.SetLog.length + 1} of {currentExercise.targetSets}
                 </p>
               </div>
               <ChevronRight size={20} className="text-zinc-300" />
