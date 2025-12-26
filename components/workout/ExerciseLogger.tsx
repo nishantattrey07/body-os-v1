@@ -4,6 +4,7 @@ import { BlockerPicker } from "@/components/blockers/BlockerPicker";
 import { useLogSet } from "@/lib/mutations/useLogSet";
 import { DistanceUnit, fromMeters, toMeters, UNIT_INCREMENTS, UNIT_LABELS } from "@/lib/utils/distance";
 import { getPreferredDistanceUnit, setPreferredDistanceUnit } from "@/lib/utils/preferences";
+import type { SupersetContext } from "@/types/workout";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -22,25 +23,23 @@ interface ExerciseLoggerProps {
   exercise: any;
   sessionExerciseId?: string;
   onComplete: (setsCount: number) => void;
-  onSetComplete?: (setNumber: number, isLastSet: boolean) => void;  // Called after EVERY set
-  onAfterRest?: () => void;  // Called after rest timer for superset loop-back
-  nextExerciseName?: string;  // For superset 'Up Next' indicator
-  isInSuperset?: boolean;     // Shows superset badge
-  isSupersetTransition?: boolean;  // If true, skip rest timer and call onSetComplete
-  isLastOfSuperset?: boolean;  // If true, after rest timer, call onAfterRest for loop-back
+  /** Superset context - if provided, enables superset behavior */
+  supersetContext?: SupersetContext;
 }
 
 export function ExerciseLogger({
   exercise,
   sessionExerciseId,
   onComplete,
-  onSetComplete,
-  onAfterRest,
-  nextExerciseName,
-  isInSuperset = false,
-  isSupersetTransition = false,
-  isLastOfSuperset = false,
+  supersetContext,
 }: ExerciseLoggerProps) {
+  // Extract superset props from context (with defaults)
+  const isInSuperset = supersetContext?.isInSuperset ?? false;
+  const isSupersetTransition = supersetContext?.isSupersetTransition ?? false;
+  const isLastOfSuperset = supersetContext?.isLastOfSuperset ?? false;
+  const nextExerciseName = supersetContext?.nextExerciseName;
+  const onSetComplete = supersetContext?.onSetComplete;
+  const onAfterRest = supersetContext?.onAfterRest;
   // Determine if this is a time-based exercise (seconds) or reps-based
   const isTimeBased = exercise.trackingType === "seconds";
   const [value, setValue] = useState(
@@ -67,11 +66,14 @@ export function ExerciseLogger({
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const [restTimerMax, setRestTimerMax] = useState<number>(0);
   const [restStartTime, setRestStartTime] = useState<Date | null>(null);
-  const [currentSet, setCurrentSet] = useState(1);
   const [showTimer, setShowTimer] = useState(false);
   const [completedSets, setCompletedSets] = useState<any[]>([]);
   const [loadingSets, setLoadingSets] = useState(true);
   const totalSets = exercise.defaultSets || 3;
+
+  // DERIVE currentSet from completedSets (this fixes superset loop-back!)
+  // When you loop back to the same exercise, completedSets updates, so currentSet recalculates
+  const currentSet = completedSets.length + 1;
 
   // Use ref for synchronous lock to prevent race conditions
   const isLoggingRef = useRef(false);
@@ -86,7 +88,6 @@ export function ExerciseLogger({
         .then(res => res.json())
         .then(data => {
           setCompletedSets(data.sets || []);
-          setCurrentSet(data.count + 1);
           setLoadingSets(false);
         })
         .catch(error => {
@@ -94,7 +95,7 @@ export function ExerciseLogger({
           setLoadingSets(false);
         });
     }
-  }, [sessionExerciseId]);
+  }, [sessionExerciseId, exercise.name]);
 
   // Reset state when exercise changes
   useEffect(() => {
@@ -144,7 +145,22 @@ export function ExerciseLogger({
     }
 
     const previousSet = currentSet;
-    const isLastSet = currentSet >= totalSets;
+    const isLastSet = previousSet >= totalSets;
+
+    // OPTIMISTIC UPDATE: Immediately add to completedSets for instant UI update
+    setCompletedSets((prev) => [
+      ...prev,
+      {
+        setNumber: previousSet,
+        actualReps: isTimeBased ? undefined : value,
+        actualSeconds: isTimeBased ? value : undefined,
+        actualWeight: weight,
+        actualDistance: tracksDistance && distance ? toMeters(distance, distanceUnit) : undefined,
+        rpe,
+        painLevel,
+        aggravatedBlockerId: selectedBlockerId,
+      },
+    ]);
 
     // CRASH-PROOF: Save to localStorage FIRST
     const setData = {
@@ -179,52 +195,47 @@ export function ExerciseLogger({
     // Unlock and update UI BEFORE server call
     isLoggingRef.current = false;
 
-    // OPTIMISTIC UPDATE: Update UI immediately
-    if (!isLastSet) {
-      // Check if this is a superset transition (should move to next exercise)
+    // CRITICAL: Check isLastOfSuperset FIRST before isLastSet!
+    // When C completes all sets but superset needs loopback, we must rest+loop, NOT finish
+    if (isLastOfSuperset && onAfterRest) {
+      // Last exercise of superset round - FIRST track this set, then show rest timer
+      if (onSetComplete) {
+        onSetComplete(previousSet);
+      }
+      
+      // Now show rest timer, then call onAfterRest to loop back
+      const restTime =
+        exercise.defaultRestSeconds !== undefined ? exercise.defaultRestSeconds : 60;
+      if (restTime > 0) {
+        setRestTimerMax(restTime);
+        setRestTimer(restTime);
+        setRestStartTime(new Date());
+        const timer = setInterval(() => {
+          setRestTimer((prev) => {
+            if (prev === null || prev <= 1) {
+              clearInterval(timer);
+              setTimeout(() => onAfterRest(), 0);
+              return null;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        setTimeout(() => onAfterRest(), 0);
+      }
+    } else if (!isLastSet) {
+      // Not the last set - continue with normal flow
       if (isSupersetTransition && onSetComplete) {
         // Let parent handle navigation - don't show rest timer
-        onSetComplete(previousSet, false);
-        // Don't increment set here - we'll come back to this exercise later
-      } else if (isLastOfSuperset && onAfterRest) {
-        // Last exercise of superset - FIRST track this set, then show rest timer
-        // This is critical! Without this, C's sets aren't tracked and allSupersetDone fails
-        if (onSetComplete) {
-          onSetComplete(previousSet, false);
-        }
-        
-        // Now show rest timer, then call onAfterRest to loop back
+        onSetComplete(previousSet);
+      } else {
+        // Normal flow - continue with sets of this exercise
         const restTime =
           exercise.defaultRestSeconds !== undefined ? exercise.defaultRestSeconds : 60;
         if (restTime > 0) {
           setRestTimerMax(restTime);
           setRestTimer(restTime);
           setRestStartTime(new Date());
-          const timer = setInterval(() => {
-            setRestTimer((prev) => {
-              if (prev === null || prev <= 1) {
-                clearInterval(timer);
-                // Defer to next tick to avoid setState-in-render error
-                setTimeout(() => onAfterRest(), 0);
-                return null;
-              }
-              return prev - 1;
-            });
-          }, 1000);
-        } else {
-          // No rest needed, defer and loop back
-          setTimeout(() => onAfterRest(), 0);
-        }
-      } else {
-        // Normal flow - continue with sets of this exercise
-        setCurrentSet((prev) => prev + 1);
-
-        const restTime =
-          exercise.defaultRestSeconds !== undefined ? exercise.defaultRestSeconds : 60;
-        if (restTime > 0) {
-          setRestTimerMax(restTime);
-          setRestTimer(restTime);
-          setRestStartTime(new Date());  // Track rest start for next set
           const timer = setInterval(() => {
             setRestTimer((prev) => {
               if (prev === null || prev <= 1) {
@@ -246,19 +257,19 @@ export function ExerciseLogger({
         }).then(() => {
           // Notify of set completion for superset logic, THEN complete the exercise
           if (onSetComplete) {
-            onSetComplete(previousSet, true);
+            onSetComplete(previousSet);
           }
           onComplete(totalSets);
         }).catch((error) => {
           console.error("[ExerciseLogger] Failed to mark exercise complete:", error);
           if (onSetComplete) {
-            onSetComplete(previousSet, true);
+            onSetComplete(previousSet);
           }
           onComplete(totalSets);
         });
       } else {
         if (onSetComplete) {
-          onSetComplete(previousSet, true);
+          onSetComplete(previousSet);
         }
         onComplete(totalSets);
       }

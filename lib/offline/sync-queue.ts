@@ -78,18 +78,23 @@ export class SyncQueue {
         if (this.isProcessing) return;
         if (typeof window === 'undefined') return;
         if (!navigator.onLine) {
-            console.log('[SyncQueue] Offline, waiting for connection...');
             return;
         }
 
         this.isProcessing = true;
         const ops = this.getPendingOps().filter(op => !op.synced);
 
-        console.log(`[SyncQueue] Processing ${ops.length} pending operations`);
-
         for (const op of ops) {
             if (op.attempts >= MAX_RETRIES) {
-                console.error('[SyncQueue] Max retries exceeded for operation:', op);
+                // Enhanced logging with full operation details
+                console.error('[SyncQueue] ❌ MAX RETRIES EXCEEDED:', {
+                    id: op.id,
+                    type: op.type,
+                    attempts: op.attempts,
+                    createdAt: new Date(op.createdAt).toISOString(),
+                    lastError: op.error,
+                    payload: JSON.stringify(op.payload, null, 2),
+                });
                 this.markFailed(op.id, 'Max retries exceeded');
                 continue;
             }
@@ -97,9 +102,17 @@ export class SyncQueue {
             try {
                 await this.executeOperation(op);
                 this.markSynced(op.id);
-                console.log('[SyncQueue] ✅ Operation synced:', op.type);
             } catch (error: any) {
-                console.error('[SyncQueue] ❌ Operation failed:', op.type, error);
+                // Enhanced error logging with full context
+                console.error('[SyncQueue] ❌ Operation failed:', {
+                    id: op.id,
+                    type: op.type,
+                    attempts: op.attempts + 1,
+                    errorMessage: error.message,
+                    errorStack: error.stack,
+                    payload: JSON.stringify(op.payload, null, 2),
+                    nextRetryIn: RETRY_DELAYS[Math.min(op.attempts, RETRY_DELAYS.length - 1)] + 'ms',
+                });
                 this.incrementAttempts(op.id, error.message);
 
                 // Schedule retry with exponential backoff
@@ -133,17 +146,18 @@ export class SyncQueue {
                 url = '/api/workout/warmup/toggle';
                 break;
             case 'COMPLETE_EXERCISE':
-                url = `/api/workout/exercises/${op.payload.exerciseId}/complete`;
+                url = '/api/workout/exercise/complete';
                 break;
             case 'COMPLETE_SESSION':
-                url = `/api/workout-session/${op.payload.sessionId}/complete`;
+                url = '/api/workout/complete';
                 break;
             case 'ABANDON_SESSION':
-                url = `/api/workout-session/${op.payload.sessionId}/abandon`;
+                url = '/api/workout/abandon';
                 break;
             default:
                 throw new Error(`Unknown operation type: ${op.type}`);
         }
+
 
         const response = await fetch(url, {
             method,
@@ -152,8 +166,28 @@ export class SyncQueue {
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error || response.statusText);
+            let errorMessage: string;
+
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || response.statusText;
+            } catch {
+                errorMessage = await response.text() || response.statusText;
+            }
+
+            // Add status code context
+            const statusContext = {
+                400: 'Bad Request - Invalid payload',
+                401: 'Unauthorized - Authentication required',
+                403: 'Forbidden - Access denied',
+                404: 'Not Found - API endpoint does not exist',
+                409: 'Conflict - Resource already exists or state mismatch',
+                500: 'Internal Server Error',
+                502: 'Bad Gateway - Server is down',
+                503: 'Service Unavailable - Server overloaded',
+            }[response.status] || 'Unknown error';
+
+            throw new Error(`${response.status} ${statusContext}: ${errorMessage}`);
         }
 
         return response.json();
@@ -187,11 +221,23 @@ export class SyncQueue {
     /**
      * Mark operation as permanently failed
      */
-    private markFailed(opId: string, error: string): void {
+    private markFailed(opId: string, reason: string): void {
         const ops = this.getPendingOps();
-        const op = ops.find(o => o.id === opId);
-        if (op) {
-            op.error = error;
+        const idx = ops.findIndex(o => o.id === opId);
+
+        if (idx !== -1) {
+            const op = ops[idx];
+
+            // Log the failure with ORIGINAL error (not overwriting it)
+            console.error('[SyncQueue] 🗑️ Removing permanently failed operation:', {
+                id: op.id,
+                type: op.type,
+                originalError: op.error, // This is the REAL error from the API
+                reason,
+            });
+
+            // REMOVE the operation from the queue entirely
+            ops.splice(idx, 1);
             this.setPendingOps(ops);
         }
     }
@@ -207,7 +253,6 @@ export class SyncQueue {
         const filtered = ops.filter(op => !op.synced || op.createdAt > oneDayAgo);
 
         if (filtered.length < ops.length) {
-            console.log(`[SyncQueue] Cleaned up ${ops.length - filtered.length} old operations`);
             this.setPendingOps(filtered);
         }
     }
@@ -240,7 +285,62 @@ export class SyncQueue {
     async forceSyncNow(): Promise<void> {
         await this.processQueue();
     }
+
+    /**
+     * Debug: Get all operations (for inspection in console)
+     */
+    getAllOperations(): PendingOperation[] {
+        return this.getPendingOps();
+    }
+
+    /**
+     * Debug: Clear all failed operations
+     */
+    clearFailedOperations(): void {
+        const ops = this.getPendingOps();
+        const filtered = ops.filter(op => !op.error || op.error === '');
+        this.setPendingOps(filtered);
+    }
+
+    /**
+     * Debug: Clear ALL operations (nuclear option)
+     */
+    clearAllOperations(): void {
+        console.warn('[SyncQueue] ⚠️ Clearing ALL pending operations');
+        this.setPendingOps([]);
+    }
 }
 
 // Singleton instance
 export const syncQueue = new SyncQueue();
+
+// Debug interface (accessible in browser console as window.debugSyncQueue)
+if (typeof window !== 'undefined') {
+    (window as any).debugSyncQueue = {
+        inspectQueue: () => {
+            const ops = syncQueue.getAllOperations();
+            console.table(ops.map(op => ({
+                id: op.id.slice(0, 8),
+                type: op.type,
+                attempts: op.attempts,
+                synced: op.synced,
+                error: op.error || 'none',
+                age: Math.round((Date.now() - op.createdAt) / 1000) + 's',
+            })));
+            return ops;
+        },
+        clearFailed: () => syncQueue.clearFailedOperations(),
+        clearAll: () => syncQueue.clearAllOperations(),
+        forceSync: () => syncQueue.forceSyncNow(),
+        help: () => {
+            console.info(`
+🔍 SyncQueue Debug Commands:
+  debugSyncQueue.inspectQueue() - View all pending operations
+  debugSyncQueue.clearFailed()  - Remove failed operations
+  debugSyncQueue.clearAll()     - Clear ALL operations (⚠️ use with caution)
+  debugSyncQueue.forceSync()    - Force sync now
+  debugSyncQueue.help()         - Show this help
+            `);
+        }
+    };
+}

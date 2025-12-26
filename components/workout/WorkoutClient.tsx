@@ -1,7 +1,9 @@
 "use client";
 
+import { useSupersetFlow } from "@/hooks/useSupersetFlow";
 import { useCreateSession } from "@/lib/mutations/useCreateSession";
 import { sessionManager } from "@/lib/offline";
+import type { SessionExercise } from "@/types/workout";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Dumbbell, Search, X } from "lucide-react";
 import Link from "next/link";
@@ -173,7 +175,6 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
       },
       {
         onSuccess: (result: any) => {
-          console.log("[WorkoutClient] Session created:", result);
           setSessionData(result);
           setStage("warmup");
           setSelectedRoutine(null);
@@ -214,7 +215,6 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
           }
           
           const result = await response.json();
-          console.log("Session deleted:", result);
         } catch (error) {
           console.error("Failed to delete warmup session:", error);
           toast.error("Failed to delete session");
@@ -374,95 +374,15 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
     }
   };
 
-  // Track completed sets per exercise for superset logic
-  const [supersetCompletedSets, setSupersetCompletedSets] = useState<Record<string, number>>({});
+  // Get exercises array for superset hook
+  const exercises: SessionExercise[] = sessionData?.session?.SessionExercise || [];
 
-  // Handle superset set completion - transitions between exercises
-  const handleSupersetSetComplete = (setNumber: number, isLastSet: boolean) => {
-    const exercises = sessionData?.session?.SessionExercise || [];
-    const currentExercise = exercises[currentExerciseIndex];
-    if (!currentExercise?.supersetId) return;
-
-    // Update completed sets for this exercise
-    setSupersetCompletedSets(prev => ({
-      ...prev,
-      [currentExercise.id]: setNumber
-    }));
-
-    // Find next exercise in the superset
-    const nextExercise = exercises[currentExerciseIndex + 1];
-    const isLinkedToNext = nextExercise?.supersetId === currentExercise.supersetId;
-
-    if (isLinkedToNext && !isLastSet) {
-      // Move to next exercise in superset (without rest)
-      setCurrentExerciseIndex(prev => prev + 1);
-    } else if (!isLastSet) {
-      // End of superset chain - find start of superset and loop back
-      // But first, show rest timer (handled by ExerciseLogger)
-      const supersetStartIdx = findSupersetStart(exercises, currentExerciseIndex);
-      
-      // Check if any exercise in superset needs more sets
-      const supersetExercises = getSupersetExercises(exercises, currentExercise.supersetId);
-      const allSupersetDone = supersetExercises.every(ex => {
-        const completed = supersetCompletedSets[ex.id] || 0;
-        return completed >= ex.targetSets;
-      });
-
-      if (!allSupersetDone) {
-        // Wait for rest timer to finish (timer is shown by ExerciseLogger in else branch)
-        // Then loop back to superset start - this happens in normal flow
-        setCurrentExerciseIndex(supersetStartIdx);
-      }
-    }
-    // If isLastSet, the exercise is complete - handleExerciseComplete will be called
-  };
-
-  // Helper: Find start of current superset
-  const findSupersetStart = (exercises: any[], endIndex: number): number => {
-    const supersetId = exercises[endIndex]?.supersetId;
-    if (!supersetId) return endIndex;
-    
-    for (let i = endIndex - 1; i >= 0; i--) {
-      if (exercises[i].supersetId !== supersetId) return i + 1;
-    }
-    return 0;
-  };
-
-  // Helper: Get all exercises in a superset group
-  const getSupersetExercises = (exercises: any[], supersetId: string): any[] => {
-    return exercises.filter(ex => ex.supersetId === supersetId);
-  };
-
-  // Helper: Find the first incomplete exercise in superset (for mismatch set counts)
-  const findNextIncompleteInSuperset = (
-    exercises: any[], 
-    currentIndex: number,
-    completedSets: Record<string, number>
-  ): number => {
-    const currentEx = exercises[currentIndex];
-    const supersetId = currentEx?.supersetId;
-    if (!supersetId) return currentIndex + 1;
-
-    // Find superset start
-    let startIdx = currentIndex;
-    while (startIdx > 0 && exercises[startIdx - 1].supersetId === supersetId) {
-      startIdx--;
-    }
-
-    // Scan forward to find first exercise that still needs sets
-    let checkIdx = startIdx;
-    while (checkIdx < exercises.length && exercises[checkIdx].supersetId === supersetId) {
-      const ex = exercises[checkIdx];
-      const completed = completedSets[ex.id] || 0;
-      if (completed < ex.targetSets) {
-        return checkIdx;
-      }
-      checkIdx++;
-    }
-
-    // All done - return next exercise after superset
-    return checkIdx;
-  };
+  // Use the superset flow hook - encapsulates all superset logic
+  const { supersetContext } = useSupersetFlow(
+    exercises,
+    currentExerciseIndex,
+    setCurrentExerciseIndex
+  );
 
   const handlePostWorkoutSubmit = async (data: PostWorkoutData) => {
     if (!sessionData?.session?.id) return;
@@ -743,47 +663,6 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
                 );
               }
 
-              // Superset detection
-              const nextExercise = exercises[currentExerciseIndex + 1];
-              const isInSuperset = !!currentExercise.supersetId;
-              const isLinkedToNext = currentExercise.supersetId && 
-                nextExercise?.supersetId === currentExercise.supersetId;
-              
-              // Check if ENTIRE superset group is finished
-              const supersetExercises = isInSuperset 
-                ? getSupersetExercises(exercises, currentExercise.supersetId)
-                : [];
-              const allSupersetDone = supersetExercises.every(ex => {
-                const completed = supersetCompletedSets[ex.id] || 0;
-                return completed >= ex.targetSets;
-              });
-
-              // Calculate next exercise name (for A/B) or loop-back name (for C)
-              let nextExerciseName: string | undefined;
-              if (isLinkedToNext) {
-                nextExerciseName = nextExercise.Exercise.name;
-              } else if (isInSuperset && !allSupersetDone) {
-                // Loop-back case: show which exercise we're looping to
-                const nextIncompleteIdx = findNextIncompleteInSuperset(
-                  exercises, currentExerciseIndex, supersetCompletedSets
-                );
-                if (nextIncompleteIdx !== currentExerciseIndex) {
-                  nextExerciseName = exercises[nextIncompleteIdx]?.Exercise?.name;
-                }
-              }
-              
-              // Is this the LAST exercise in the superset chain? (e.g., C in A-B-C)
-              // Only true if not all done - prevents loop-back when genuinely finished
-              const isLastOfSuperset = isInSuperset && !isLinkedToNext && !allSupersetDone;
-
-              // Callback for after rest timer on last superset exercise - smart skip to next incomplete
-              const handleSupersetAfterRest = () => {
-                const nextIdx = findNextIncompleteInSuperset(
-                  exercises, currentExerciseIndex, supersetCompletedSets
-                );
-                setCurrentExerciseIndex(nextIdx);
-              };
-
               return (
                 <>
                   {/* Exercise Progress Bar */}
@@ -817,12 +696,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
                     }}
                     sessionExerciseId={currentExercise.id}
                     onComplete={handleExerciseComplete}
-                    onSetComplete={isInSuperset ? handleSupersetSetComplete : undefined}
-                    onAfterRest={isLastOfSuperset ? handleSupersetAfterRest : undefined}
-                    isInSuperset={isInSuperset}
-                    isSupersetTransition={!!nextExerciseName}
-                    isLastOfSuperset={isLastOfSuperset}
-                    nextExerciseName={nextExerciseName}
+                    supersetContext={supersetContext}
                   />
                 </>
               );

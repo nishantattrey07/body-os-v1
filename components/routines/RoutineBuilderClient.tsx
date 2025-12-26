@@ -186,7 +186,7 @@ export function RoutineBuilderClient({
       }
     } else {
       // Link: assign same supersetId to current and next
-      const newSupersetId = current.supersetId || `superset-${Date.now()}`;
+      const newSupersetId = current.supersetId || crypto.randomUUID();
       setLocalExercises((prev) =>
         prev.map((ex, idx) => {
           if (idx === currentIdx || idx === currentIdx + 1) {
