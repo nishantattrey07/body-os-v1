@@ -7,6 +7,7 @@ interface MacroData {
   protein: { current: number; target: number };
   carbs: { current: number; target: number };
   fats: { current: number; target: number };
+  fiber: { current: number; target: number };
   calories: { current: number; target: number };
 }
 
@@ -17,6 +18,7 @@ export function MacroGauge({ data }: { data: MacroData }) {
     { label: "Daily Protein", unit: "g", color: "var(--energy)", ...data.protein },
     { label: "Daily Carbs", unit: "g", color: "#3b82f6", ...data.carbs },
     { label: "Daily Fats", unit: "g", color: "#f59e0b", ...data.fats },
+    { label: "Daily Fiber", unit: "g", color: "#10b981", ...data.fiber },
     { label: "Daily Calories", unit: "kcal", color: "#ef4444", ...data.calories },
   ];
 

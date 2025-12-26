@@ -11,8 +11,11 @@ export interface DailyLog {
     proteinTotal: number;
     carbsTotal: number;
     fatsTotal: number;
+    fiberTotal: number;
     caloriesTotal: number;
     waterTotal: number;
+    sodiumTotal: number | null;
+    cholesterolTotal: number | null;
     serverTimestamp?: string;
     updatedAt?: Date | string;
 }

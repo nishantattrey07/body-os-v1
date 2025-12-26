@@ -48,8 +48,12 @@ model DailyLog {
   proteinTotal  Float        @default(0)
   carbsTotal    Float        @default(0)
   fatsTotal     Float        @default(0)
+  fiberTotal    Float        @default(0)  // Correlate with bloated field
   waterTotal    Float        @default(0)
   caloriesTotal Float        @default(0)
+  // Optional micronutrient totals (no targets, just tracking)
+  sodiumTotal      Float?    // Total sodium intake (mg)
+  cholesterolTotal Float?    // Total cholesterol intake (mg)
   userId        String
   User          User         @relation(fields: [userId], references: [id])
   DailyReview   DailyReview?
@@ -123,11 +127,18 @@ model ExerciseMuscle {
 model InventoryItem {
   id              String         @id @default(cuid())
   name            String
+  brand           String?        // Brand name (e.g., "Amul", "MyProtein")
+  barcode         String?        // For future barcode scanning
   icon            String
   proteinPerUnit  Float
   carbsPerUnit    Float          @default(0)
   fatPerUnit      Float          @default(0)
+  fiberPerUnit    Float          @default(0)  // Critical for bloat analysis
+  sugarPerUnit    Float          @default(0)  // Energy crash tracking
   caloriesPerUnit Float
+  // Optional micronutrients (nullable - user can leave blank if unknown)
+  sodiumPerUnit      Float?      // For blood pressure tracking (mg)
+  cholesterolPerUnit Float?      // For heart health tracking (mg)
   volumePerUnit   Float
   defaultUnit     String
   costPerUnit     Float          @default(0)
@@ -141,6 +152,7 @@ model InventoryItem {
   @@unique([name, userId])
   @@index([isActive])
   @@index([userId])
+  @@index([barcode], name: "idx_inventory_barcode")
 }
 
 model MuscleGroup {
@@ -151,14 +163,27 @@ model MuscleGroup {
 }
 
 model NutritionLog {
-  id              String        @id @default(cuid())
-  timestamp       DateTime      @default(now())
+  id              String         @id @default(cuid())
+  timestamp       DateTime       @default(now())
   qty             Float
   mealType        String?
-  inventoryItemId String
+  inventoryItemId String?        // Nullable for quick-add entries
   userId          String
-  InventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
-  User            User          @relation(fields: [userId], references: [id])
+  
+  // SNAPSHOT FIELDS - frozen at log time, prevent time-travel bug
+  name            String         // Item name at time of logging
+  protein         Float          // Calculated: proteinPerUnit * qty
+  carbs           Float          // Calculated: carbsPerUnit * qty
+  fat             Float          // Calculated: fatPerUnit * qty
+  fiber           Float          @default(0)
+  sugar           Float          @default(0)
+  calories        Float          // Calculated: caloriesPerUnit * qty
+  // Optional snapshots (nullable if inventory item didn't have them)
+  sodium          Float?         // sodiumPerUnit * qty (if available)
+  cholesterol     Float?         // cholesterolPerUnit * qty (if available)
+  
+  InventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  User            User           @relation(fields: [userId], references: [id])
 
   @@index([userId, timestamp])
   @@index([inventoryItemId])
@@ -299,6 +324,7 @@ model UserSettings {
   proteinTarget   Float    @default(140)
   carbsTarget     Float    @default(200)
   fatsTarget      Float    @default(60)
+  fiberTarget     Float    @default(30)   // Recommended daily fiber (g)
   caloriesTarget  Float    @default(2000)
   waterTarget     Float    @default(4000)
   dayCutoffHour   Int      @default(5)

@@ -6,6 +6,7 @@ export interface UserSettings {
     proteinTarget: number;
     carbsTarget: number;
     fatsTarget: number;
+    fiberTarget: number;
     caloriesTarget: number;
     waterTarget: number;
     dayCutoffHour: number;

@@ -201,6 +201,10 @@ export function DashboardClient({ initialDailyLog, initialSettings }: DashboardC
                     current: dailyLog?.fatsTotal || 0, 
                     target: settings?.fatsTarget ?? 60
                   },
+                  fiber: { 
+                    current: dailyLog?.fiberTotal || 0, 
+                    target: settings?.fiberTarget ?? 30
+                  },
                   calories: { 
                     current: dailyLog?.caloriesTotal || 0, 
                     target: settings?.caloriesTarget ?? 2000
