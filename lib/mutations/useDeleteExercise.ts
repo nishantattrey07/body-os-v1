@@ -24,7 +24,7 @@ export function useDeleteExercise() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["exercises"] });
-            toast.success("Exercise deleted successfully!");
+            // Silent success - list update provides feedback
         },
         onError: (error: Error) => {
             toast.error(error.message || "Failed to delete exercise");

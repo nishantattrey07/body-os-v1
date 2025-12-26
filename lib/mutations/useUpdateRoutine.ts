@@ -56,7 +56,7 @@ export function useUpdateRoutine() {
             toast.error(error.message || "Failed to update routine");
         },
         onSuccess: () => {
-            toast.success("Routine updated successfully");
+            // Silent success
         },
         onSettled: () => {
             queryClient.invalidateQueries({

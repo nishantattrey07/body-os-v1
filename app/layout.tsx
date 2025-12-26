@@ -46,7 +46,7 @@ export default function RootLayout({
         <SessionProvider>
           <ReactQueryProvider>{children}</ReactQueryProvider>
         </SessionProvider>
-        <Toaster position="top-center" richColors />
+        <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
   );

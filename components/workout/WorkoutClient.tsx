@@ -243,7 +243,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
     setShowExitConfirm(false);
     setStage("select");
     setSessionData(null);
-    toast.success("Workout paused - you can resume later");
+    // Pause feedback via UI navigation to dashboard
     sessionManager.clearActiveSession();
   };
 
@@ -260,7 +260,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
       if (!response.ok) throw new Error("Failed to abandon session");
 
       setShowExitConfirm(false);
-      toast.success("Workout abandoned");
+      // Abandon feedback via UI navigation
       sessionManager.clearActiveSession();
       router.push("/");
     } catch (error) {
@@ -312,7 +312,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
       setShowResumeModal(false);
       setActiveSession(null);
       sessionManager.clearActiveSession();
-      toast.success("Workout discarded");
+      // Discard feedback via UI navigation
     } catch (error) {
       console.error("Failed to abandon workout:", error);
       toast.error("Failed to discard workout");
@@ -353,7 +353,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
       setActiveSession(null);
       sessionManager.clearActiveSession();
 
-      toast.success("Starting fresh with same routine");
+      // Restart feedback via session reset
 
       // PreWorkoutModal will open automatically because selectedRoutine !== null
     } catch (error) {
@@ -408,7 +408,7 @@ export function WorkoutClient({ initialRoutines }: WorkoutClientProps) {
 
       if (!response.ok) throw new Error("Failed to complete session");
 
-      toast.success("Workout completed!");
+      // Completion feedback via modal
       sessionManager.clearActiveSession();
       
       // Navigate immediately - component will unmount, no need to clear state

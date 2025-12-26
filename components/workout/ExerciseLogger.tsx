@@ -7,16 +7,15 @@ import { getPreferredDistanceUnit, setPreferredDistanceUnit } from "@/lib/utils/
 import type { SupersetContext } from "@/types/workout";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlertTriangle,
-  Check,
-  CheckCircle,
-  Loader2,
-  Minus,
-  Plus,
-  Timer,
+    AlertTriangle,
+    Check,
+    CheckCircle,
+    Loader2,
+    Minus,
+    Plus,
+    Timer,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { TimerModal } from "./TimerModal";
 
 interface ExerciseLoggerProps {
@@ -130,7 +129,7 @@ export function ExerciseLogger({
 
     // Check if this set already exists (additional safety layer)
     if (completedSets.some(s => s.setNumber === currentSet)) {
-      toast.error("Set already logged");
+      // Silent fail - already logged
       isLoggingRef.current = false;
       return;
     }
@@ -275,7 +274,7 @@ export function ExerciseLogger({
       }
     }
 
-    toast.success(`Set ${previousSet} logged!`);
+    // Success feedback via UI update only
 
     // BACKGROUND SYNC: Fire and forget
     logSetMutation.mutate(setData, {

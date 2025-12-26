@@ -49,7 +49,7 @@ export function useCreateSession() {
                 warmupData: data.warmupData,
             });
 
-            toast.success('Session started!');
+            // Silent success - navigation to workout provides feedback
 
             return data; // Return full session data
         },

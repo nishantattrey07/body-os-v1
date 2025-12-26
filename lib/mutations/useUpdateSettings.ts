@@ -41,7 +41,7 @@ export function useUpdateSettings() {
             // Invalidate both settings and daily log (cutoff affects daily log)
             queryClient.invalidateQueries({ queryKey: ['user-settings'] });
             queryClient.invalidateQueries({ queryKey: ['daily-log'] });
-            toast.success('Settings updated successfully!');
+            // Silent success - form update provides feedback
         },
 
         onError: () => {

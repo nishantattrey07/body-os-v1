@@ -39,7 +39,7 @@ export function useSaveRoutineExercises() {
             // Invalidate routines list to show updated exercise count
             queryClient.invalidateQueries({ queryKey: ["routines"] });
 
-            toast.success("Routine saved successfully");
+            // Silent success - navigation provides feedback
         },
         onError: (error) => {
             toast.error(error.message || "Failed to save routine");

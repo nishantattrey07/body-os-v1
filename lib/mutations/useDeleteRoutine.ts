@@ -47,7 +47,7 @@ export function useDeleteRoutine() {
             toast.error(error.message || "Failed to delete routine");
         },
         onSuccess: () => {
-            toast.success("Routine deleted successfully");
+            // Silent success - UI update provides feedback
         },
         onSettled: () => {
             queryClient.invalidateQueries({

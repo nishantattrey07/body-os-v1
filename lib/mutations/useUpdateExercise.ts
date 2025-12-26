@@ -36,7 +36,7 @@ export function useUpdateExercise() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["exercises"] });
-            toast.success("Exercise updated successfully!");
+            // Silent success - form close provides feedback
         },
         onError: (error: Error) => {
             toast.error(error.message || "Failed to update exercise");

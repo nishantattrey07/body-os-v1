@@ -70,7 +70,7 @@ export function useCreateRoutine() {
             toast.error(error.message || "Failed to create routine");
         },
         onSuccess: () => {
-            toast.success("Routine created successfully");
+            // Silent success - navigation provides feedback
         },
         onSettled: () => {
             // Refetch to sync with server

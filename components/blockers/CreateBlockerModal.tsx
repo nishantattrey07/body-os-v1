@@ -73,7 +73,7 @@ export function CreateBlockerModal({ onClose, onCreated }: CreateBlockerModalPro
 
       if (!response.ok) throw new Error("Failed to create blocker");
 
-      toast.success("Body issue reported!");
+      // Silent success - modal close provides feedback
       onCreated();
     } catch (error) {
       console.error("Failed to create blocker:", error);
