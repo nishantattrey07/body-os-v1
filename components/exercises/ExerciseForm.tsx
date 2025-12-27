@@ -1,5 +1,7 @@
 "use client";
 
+import { MuscleSelector } from "@/components/exercises/MuscleSelector";
+import { useMuscleGroups } from "@/lib/queries/useMuscleGroups";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -16,6 +18,8 @@ interface ExerciseFormProps {
     defaultDistance?: number;
     defaultDistanceUnit?: string;
     description?: string;
+    primaryMuscles?: string[];
+    secondaryMuscles?: string[];
   };
   onSubmit: (data: {
     name: string;
@@ -28,6 +32,8 @@ interface ExerciseFormProps {
     defaultDistance?: number;
     defaultDistanceUnit?: string;
     description?: string;
+    primaryMuscles: string[];
+    secondaryMuscles: string[];
   }) => void;
   onCancel: () => void;
   isOpen: boolean;
@@ -37,7 +43,7 @@ const DEFAULT_CATEGORIES = ["Push", "Core", "Pull", "Legs"];
 
 /**
  * ExerciseForm - Modal for creating/editing exercises
- * Matches reference UI exactly
+ * Now includes muscle targeting (primary + secondary)
  */
 export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: ExerciseFormProps) {
   const [name, setName] = useState(initialData?.name || "");
@@ -53,6 +59,11 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
   const [tracksDistance, setTracksDistance] = useState(initialData?.tracksDistance || false);
   const [defaultDistance, setDefaultDistance] = useState(initialData?.defaultDistance || 20);
   const [description, setDescription] = useState(initialData?.description || "");
+  
+  // NEW: Muscle targeting
+  const [primaryMuscles, setPrimaryMuscles] = useState<string[]>(initialData?.primaryMuscles || []);
+  const [secondaryMuscles, setSecondaryMuscles] = useState<string[]>(initialData?.secondaryMuscles || []);
+  const { data: muscles = [], isLoading: musclesLoading } = useMuscleGroups();
 
   // Reset form when modal closes or initialData changes
   useEffect(() => {
@@ -69,6 +80,8 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       setTracksDistance(false);
       setDefaultDistance(20);
       setDescription("");
+      setPrimaryMuscles([]);
+      setSecondaryMuscles([]);
     } else if (initialData) {
       // Set form data when editing
       setName(initialData.name);
@@ -83,11 +96,23 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       
       setDefaultDistance(initialData.defaultDistance || 20);
       setDescription(initialData.description || "");
+      setPrimaryMuscles(initialData.primaryMuscles || []);
+      setSecondaryMuscles(initialData.secondaryMuscles || []);
     }
   }, [isOpen, initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate: at least one primary muscle required
+    if (primaryMuscles.length === 0) {
+      alert("Please select at least one primary muscle");
+      return;
+    }
+    
+    // Auto-remove duplicates: if muscle is in both primary and secondary, remove from secondary
+    const filteredSecondary = secondaryMuscles.filter(id => !primaryMuscles.includes(id));
+    
     onSubmit({
       name,
       category: showCustomCategory ? customCategory : category,
@@ -99,6 +124,8 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
       defaultDistance: tracksDistance ? defaultDistance : undefined,
       defaultDistanceUnit: tracksDistance ? "m" : undefined,
       description: description || undefined,
+      primaryMuscles,
+      secondaryMuscles: filteredSecondary,
     });
   };
 
@@ -286,6 +313,43 @@ export function ExerciseForm({ initialData, onSubmit, onCancel, isOpen }: Exerci
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl border-2 border-zinc-200 focus:border-orange-500 outline-none resize-none"
                 />
+              </div>
+
+              {/* PRIMARY MUSCLES */}
+              <div>
+                <label className="text-sm font-bold text-zinc-700 uppercase tracking-wider mb-2 block">
+                  Primary Muscles *
+                </label>
+                {musclesLoading ? (
+                  <div className="text-sm text-zinc-400">Loading muscles...</div>
+                ) : (
+                  <MuscleSelector
+                    muscles={muscles}
+                    selected={primaryMuscles}
+                    onChange={setPrimaryMuscles}
+                    groupByRegion={true}
+                  />
+                )}
+                {primaryMuscles.length === 0 && (
+                  <p className="text-xs text-orange-600 mt-2">Select at least one primary muscle</p>
+                )}
+              </div>
+
+              {/* SECONDARY MUSCLES */}
+              <div>
+                <label className="text-sm font-bold text-zinc-700 uppercase tracking-wider mb-2 block">
+                  Secondary Muscles (Optional)
+                </label>
+                {musclesLoading ? (
+                  <div className="text-sm text-zinc-400">Loading muscles...</div>
+                ) : (
+                  <MuscleSelector
+                    muscles={muscles}
+                    selected={secondaryMuscles}
+                    onChange={setSecondaryMuscles}
+                    groupByRegion={true}
+                  />
+                )}
               </div>
 
               {/* Track Distance Toggle */}

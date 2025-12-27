@@ -239,6 +239,14 @@ model RoutineExercise {
 model SessionExercise {
   id                 String         @id @default(cuid())
   order              Int
+  
+  // === SNAPSHOT FIELDS (frozen at workout time) ===
+  // Prevents "time-travel bug" - history shows what you actually did
+  exerciseName       String         @default("Unknown") // Name at the time
+  exerciseCategory   String         @default("Unknown") // Category at the time
+  exerciseEquipment  String?        // Equipment at the time
+  trackingType       String         @default("reps")    // "reps" or "seconds"
+  
   targetSets         Int            @default(3)
   targetReps         Int?
   targetDuration     Int?
@@ -252,8 +260,11 @@ model SessionExercise {
   skipReason         String?
   swappedFromId      String?
   sessionId          String
-  exerciseId         String
-  Exercise           Exercise       @relation(fields: [exerciseId], references: [id])
+  
+  // === NULLABLE REFERENCE (can be null if exercise deleted) ===
+  exerciseId         String?
+  Exercise           Exercise?      @relation(fields: [exerciseId], references: [id])
+  
   WorkoutSession     WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   SetLog             SetLog[]
 

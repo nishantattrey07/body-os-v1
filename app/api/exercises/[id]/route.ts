@@ -164,7 +164,7 @@ export async function DELETE(
             );
         }
 
-        // Delete exercise (cascade will remove from routines)
+        // Delete exercise (history is safe via snapshots!)
         await prisma.exercise.delete({
             where: { id },
         });

@@ -27,12 +27,22 @@ export async function POST(request: NextRequest) {
             defaultDistance,
             defaultDistanceUnit, // UI sends this for conversion
             description,
+            primaryMuscles, // NEW: array of muscle group IDs
+            secondaryMuscles, // NEW: array of muscle group IDs
         } = body;
 
         // Validation
         if (!name || !category || !trackingType || !defaultSets) {
             return NextResponse.json(
                 { error: "Missing required fields" },
+                { status: 400 }
+            );
+        }
+
+        // Validate muscles
+        if (!primaryMuscles || primaryMuscles.length === 0) {
+            return NextResponse.json(
+                { error: "At least one primary muscle is required" },
                 { status: 400 }
             );
         }
@@ -83,6 +93,23 @@ export async function POST(request: NextRequest) {
                 isSystem: false,
                 userId: session.user.id,
             },
+        });
+
+        // Create muscle mappings
+        const primaryMappings = (primaryMuscles as string[]).map(muscleId => ({
+            exerciseId: exercise.id,
+            muscleGroupId: muscleId,
+            isPrimary: true,
+        }));
+
+        const secondaryMappings = (secondaryMuscles as string[] || []).map(muscleId => ({
+            exerciseId: exercise.id,
+            muscleGroupId: muscleId,
+            isPrimary: false,
+        }));
+
+        await prisma.exerciseMuscle.createMany({
+            data: [...primaryMappings, ...secondaryMappings],
         });
 
         return NextResponse.json(exercise);

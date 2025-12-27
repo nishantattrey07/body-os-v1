@@ -60,11 +60,21 @@ export async function POST(request: Request) {
                 fastedWorkout,
                 caffeineIntake,
                 status: 'IN_PROGRESS',
-                // Create session exercises
+                // Create session exercises with SNAPSHOTS
                 SessionExercise: {
                     create: routine.RoutineExercise.map((re, index) => ({
                         order: index,
+
+                        // === SNAPSHOT FIELDS (frozen at workout time) ===
+                        exerciseName: re.Exercise.name,
+                        exerciseCategory: re.Exercise.category,
+                        exerciseEquipment: re.Exercise.equipment,
+                        trackingType: re.Exercise.trackingType,
+
+                        // === NULLABLE REFERENCE ===
                         exerciseId: re.exerciseId,
+
+                        // === TARGETS ===
                         targetSets: re.sets,
                         targetReps: re.reps,
                         targetDuration: re.duration,
