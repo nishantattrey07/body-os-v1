@@ -41,6 +41,8 @@ export interface FormattedSessionData {
         startedAt: Date | null;
         completedAt: Date | null;
         skipped: boolean;
+        exerciseNote: string | null;     // NEW
+        noteAddedAt: Date | null;        // NEW
         sets: Array<{
             setNumber: number;
             actualReps: number | null;
@@ -142,6 +144,8 @@ export async function getFormattedSessionData(sessionId: string): Promise<Format
             startedAt: sessionEx.startedAt,
             completedAt: sessionEx.completedAt,
             skipped: sessionEx.skipped,
+            exerciseNote: sessionEx.exerciseNote,       // NEW
+            noteAddedAt: sessionEx.noteAddedAt,         // NEW
             sets: sessionEx.SetLog.map(set => ({
                 setNumber: set.setNumber,
                 actualReps: set.actualReps,

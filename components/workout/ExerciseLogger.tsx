@@ -1,6 +1,7 @@
 "use client";
 
 import { BlockerPicker } from "@/components/blockers/BlockerPicker";
+import { useAddExerciseNote } from "@/lib/mutations/useAddExerciseNote";
 import { useLogSet } from "@/lib/mutations/useLogSet";
 import { DistanceUnit, fromMeters, toMeters, UNIT_INCREMENTS, UNIT_LABELS } from "@/lib/utils/distance";
 import { getPreferredDistanceUnit, setPreferredDistanceUnit } from "@/lib/utils/preferences";
@@ -11,6 +12,7 @@ import {
     Check,
     CheckCircle,
     Loader2,
+    MessageSquare,
     Minus,
     Plus,
     Timer,
@@ -70,6 +72,11 @@ export function ExerciseLogger({
   const [loadingSets, setLoadingSets] = useState(true);
   const totalSets = exercise.defaultSets || 3;
 
+  // Exercise notes state
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [exerciseNote, setExerciseNote] = useState("");
+  const addNoteMutation = useAddExerciseNote();
+
   // DERIVE currentSet from completedSets (this fixes superset loop-back!)
   // When you loop back to the same exercise, completedSets updates, so currentSet recalculates
   const currentSet = completedSets.length + 1;
@@ -78,6 +85,9 @@ export function ExerciseLogger({
   const isLoggingRef = useRef(false);
 
   const logSetMutation = useLogSet();
+
+  // Smart prompt: Show note input if pain >=4 or failure
+  const shouldPromptNote = painLevel >= 4 || rpe >= 9;
 
   // Fetch existing sets on mount/exercise change
   useEffect(() => {
@@ -109,6 +119,9 @@ export function ExerciseLogger({
     setRestTimer(null);
     setRestTimerMax(0);
     setRestStartTime(null);
+    // Clear note when exercise changes
+    setExerciseNote("");
+    setShowNoteInput(false);
     isLoggingRef.current = false;
   }, [exercise.id, isTimeBased, distanceUnit]);
 
@@ -325,14 +338,61 @@ export function ExerciseLogger({
 
       {/* Exercise Header - Compact */}
       <div className="text-center">
-        <h2 className="text-3xl font-bold font-heading uppercase tracking-tight text-foreground">
-          {exercise.name}
-          {isInSuperset && (
-            <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium normal-case tracking-normal">
-              Superset
-            </span>
+        <div className="flex items-center justify-center gap-3 mb-1">
+          <h2 className="text-3xl font-bold font-heading uppercase tracking-tight text-foreground">
+            {exercise.name}
+            {isInSuperset && (
+              <span className="ml-2 text-sm bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium normal-case tracking-normal">
+                Superset
+              </span>
+            )}
+          </h2>
+          
+          {/* Note button - subtle and always visible */}
+          <motion.button
+            onClick={() => setShowNoteInput(!showNoteInput)}
+            whileTap={{ scale: 0.95 }}
+            className={`p-2 rounded-full transition-colors ${
+              showNoteInput || exerciseNote
+                ? 'bg-blue-100 text-blue-600'
+                : 'bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+            }`}
+            title="Add note"
+          >
+            <MessageSquare size={18} />
+          </motion.button>
+        </div>
+        
+        {/* Inline note input */}
+        <AnimatePresence>
+          {(showNoteInput || shouldPromptNote) && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-2 mb-3"
+            >
+              <textarea
+                value={exerciseNote}
+                onChange={(e) => setExerciseNote(e.target.value)}
+                onBlur={() => {
+                  if (sessionExerciseId && exerciseNote.trim()) {
+                    addNoteMutation.mutate({
+                      sessionExerciseId,
+                      note: exerciseNote,
+                    });
+                  }
+                }}
+                placeholder={shouldPromptNote ? "High pain/effort detected. Add note? (optional)" : "Notes: form, feeling, etc. (optional)"}
+                className="w-full px-3 py-2 text-sm text-zinc-700 bg-white border-2 border-blue-200 rounded-xl focus:outline-none focus:border-blue-400 resize-none"
+                rows={2}
+              />
+              {shouldPromptNote && (
+                <p className="text-xs text-amber-600 mt-1">💡 Consider noting: pain location, form issues, or fatigue</p>
+              )}
+            </motion.div>
           )}
-        </h2>
+        </AnimatePresence>
         
         {/* Set Progress - compact without card */}
         <div className="flex flex-wrap justify-center gap-3 mt-4 mb-3">
@@ -408,7 +468,7 @@ export function ExerciseLogger({
         </p>
         <div className="flex items-center justify-center gap-8">
           <motion.button
-            onClick={() => setValue(Math.max(1, value - 1))}
+            onClick={() => setValue(Math.max(0, value - 1))}
             whileTap={{ scale: 0.9 }}
             whileHover={{ scale: 1.05 }}
             className="h-14 w-14 rounded-full bg-gradient-to-br from-red-400 to-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/30"
@@ -440,7 +500,7 @@ export function ExerciseLogger({
           {(isTimeBased ? [-30, -10, +10, +30] : [-5, -2, +2, +5]).map(delta => (
             <button
               key={delta}
-              onClick={() => setValue(Math.max(1, value + delta))}
+              onClick={() => setValue(Math.max(0, value + delta))}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 delta < 0 
                   ? 'bg-red-50 text-red-600 hover:bg-red-100' 

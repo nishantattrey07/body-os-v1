@@ -261,6 +261,10 @@ model SessionExercise {
   swappedFromId      String?
   sessionId          String
   
+  // === EXERCISE NOTES ===
+  exerciseNote       String?        // Optional note after completing exercise
+  noteAddedAt        DateTime?      // When note was added
+  
   // === NULLABLE REFERENCE (can be null if exercise deleted) ===
   exerciseId         String?
   Exercise           Exercise?      @relation(fields: [exerciseId], references: [id])
