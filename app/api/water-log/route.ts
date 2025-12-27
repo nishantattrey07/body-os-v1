@@ -1,13 +1,14 @@
 import { auth } from "@/lib/auth";
-import { getDailyLogKey } from "@/lib/date-utils";
 import { DEFAULTS } from "@/lib/defaults";
 import { prisma } from "@/lib/prisma";
+import { getClientTimezone, getDayKeyForTimezone } from "@/lib/server/timezone";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
  * POST /api/water-log
  * 
  * Log water intake with optimistic UI support
+ * Uses client's timezone from X-Timezone header for day boundary
  */
 export async function POST(req: NextRequest) {
     try {
@@ -15,6 +16,9 @@ export async function POST(req: NextRequest) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        // Get client timezone from header
+        const timezone = getClientTimezone(req);
 
         const body = await req.json();
         const { amount } = body;
@@ -31,18 +35,20 @@ export async function POST(req: NextRequest) {
 
         const cutoffHour = settings?.dayCutoffHour ?? DEFAULTS.dayCutoffHour;
         const cutoffMinute = settings?.dayCutoffMinute ?? DEFAULTS.dayCutoffMinute;
-        const today = getDailyLogKey(undefined, cutoffHour, cutoffMinute);
 
-        // Create water log entry
+        // Get today using CLIENT's timezone and cutoff
+        const today = getDayKeyForTimezone(timezone, cutoffHour, cutoffMinute);
+
+        // Create water log entry (timestamp stays as UTC - exact moment)
         const waterLog = await prisma.waterLog.create({
             data: {
                 userId: session.user.id,
                 amount,
-                timestamp: new Date(),
+                timestamp: new Date(), // UTC - exact moment of logging
             },
         });
 
-        // Update daily log total
+        // Update daily log total (using client's day)
         const dailyLog = await prisma.dailyLog.upsert({
             where: {
                 userId_date: {

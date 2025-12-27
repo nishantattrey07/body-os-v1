@@ -1,3 +1,4 @@
+import { getTimezoneHeaders } from '@/lib/api-client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -12,6 +13,7 @@ interface UpdateDailyLogData {
  * Mutation hook for updating daily log (weight, sleep, mood)
  * 
  * Features:
+ * - Sends client timezone for correct day boundary calculation
  * - Optimistic UI updates (instant feedback)
  * - Error rollback (restores previous state on failure)
  * - Toast notifications
@@ -23,7 +25,10 @@ export function useUpdateDailyLog() {
         mutationFn: async (data: UpdateDailyLogData) => {
             const response = await fetch('/api/daily-log', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getTimezoneHeaders(),
+                },
                 body: JSON.stringify(data),
             });
 

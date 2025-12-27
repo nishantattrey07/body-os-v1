@@ -1,14 +1,14 @@
 import { auth } from "@/lib/auth";
-import { getDailyLogKey } from "@/lib/date-utils";
 import { DEFAULTS } from "@/lib/defaults";
 import { prisma } from "@/lib/prisma";
+import { getClientTimezone, getDayKeyForTimezone } from "@/lib/server/timezone";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
  * GET /api/daily-log
  * 
  * Fetches today's daily log with user's custom day cutoff
- * Supports If-Modified-Since for 304 caching
+ * Uses client's timezone from X-Timezone header
  */
 export async function GET(req: NextRequest) {
     try {
@@ -16,6 +16,9 @@ export async function GET(req: NextRequest) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        // Get client timezone from header
+        const timezone = getClientTimezone(req);
 
         // Get user settings for day cutoff
         const settings = await prisma.userSettings.findUnique({
@@ -26,8 +29,8 @@ export async function GET(req: NextRequest) {
         const cutoffHour = settings?.dayCutoffHour ?? DEFAULTS.dayCutoffHour;
         const cutoffMinute = settings?.dayCutoffMinute ?? DEFAULTS.dayCutoffMinute;
 
-        // Get today's date key with custom cutoff
-        const today = getDailyLogKey(undefined, cutoffHour, cutoffMinute);
+        // Get today's date key using CLIENT's timezone and cutoff
+        const today = getDayKeyForTimezone(timezone, cutoffHour, cutoffMinute);
 
         // Fetch daily log
         const log = await prisma.dailyLog.findUnique({
@@ -74,6 +77,7 @@ export async function GET(req: NextRequest) {
  * POST /api/daily-log
  * 
  * Create or update daily log (morning check-in)
+ * Uses client's timezone from X-Timezone header
  */
 export async function POST(req: NextRequest) {
     try {
@@ -81,6 +85,9 @@ export async function POST(req: NextRequest) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        // Get client timezone from header
+        const timezone = getClientTimezone(req);
 
         const body = await req.json();
         const { weight, sleepHours, sleepQuality, mood } = body;
@@ -94,7 +101,8 @@ export async function POST(req: NextRequest) {
         const cutoffHour = settings?.dayCutoffHour ?? DEFAULTS.dayCutoffHour;
         const cutoffMinute = settings?.dayCutoffMinute ?? DEFAULTS.dayCutoffMinute;
 
-        const today = getDailyLogKey(undefined, cutoffHour, cutoffMinute);
+        // Get today using CLIENT's timezone and cutoff
+        const today = getDayKeyForTimezone(timezone, cutoffHour, cutoffMinute);
 
         // Upsert daily log
         const log = await prisma.dailyLog.upsert({

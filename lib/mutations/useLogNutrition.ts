@@ -1,3 +1,4 @@
+import { getTimezoneHeaders } from "@/lib/api-client";
 import type { DailyLog } from "@/lib/queries/useDailyLog";
 import { queryKeys } from "@/lib/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ interface LogNutritionInput {
  * Mutation hook for logging nutrition with optimistic updates
  * 
  * Features:
+ * - Sends client timezone for correct day boundary calculation
  * - Instant UI feedback (optimistic update)
  * - Automatic rollback on error
  * - Server snapshots macros (history safe!)
@@ -42,7 +44,10 @@ export function useLogNutrition() {
         mutationFn: async ({ item, quantity = 1, mealType }: LogNutritionInput) => {
             const response = await fetch("/api/nutrition/log", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...getTimezoneHeaders(),
+                },
                 body: JSON.stringify({
                     inventoryItemId: item.id,
                     qty: quantity,

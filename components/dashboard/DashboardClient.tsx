@@ -25,14 +25,21 @@ interface DashboardClientProps {
  * - Server-side initialData for instant hydration
  * - localStorage persistence via React Query
  * - Simplified animations (no heavy blur)
+ * - Refetches with correct timezone on mount
  */
 export function DashboardClient({ initialDailyLog, initialSettings }: DashboardClientProps) {
   // React Query hooks - hydrate with server data
-  const { data: dailyLog, isLoading: logLoading } = useDailyLog(initialDailyLog);
+  const { data: dailyLog, isLoading: logLoading, refetch: refetchDailyLog } = useDailyLog(initialDailyLog);
   const { data: settings, isLoading: settingsLoading } = useUserSettings(initialSettings);
 
   // Morning check-in modal state
   const [showCheckIn, setShowCheckIn] = useState(false);
+
+  // Refetch daily log on mount with correct client timezone
+  // This ensures we get the right day's data even if server guessed wrong
+  useEffect(() => {
+    refetchDailyLog();
+  }, [refetchDailyLog]);
 
   // Check if user needs to check in (no weight or sleep)
   const needsCheckIn = useMemo(() => {

@@ -1,3 +1,4 @@
+import { getTimezoneHeaders } from '@/lib/api-client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -5,6 +6,7 @@ import { toast } from 'sonner';
  * Mutation hook for logging water intake
  * 
  * Features:
+ * - Sends client timezone for correct day boundary calculation
  * - Optimistic UI updates (instant feedback)
  * - Error rollback (restores previous state on failure)
  * - Toast notifications
@@ -16,7 +18,10 @@ export function useLogWater() {
         mutationFn: async (amount: number) => {
             const response = await fetch('/api/water-log', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getTimezoneHeaders(),
+                },
                 body: JSON.stringify({ amount }),
             });
 

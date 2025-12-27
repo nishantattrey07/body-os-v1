@@ -1,3 +1,4 @@
+import { getTimezoneHeaders } from '@/lib/api-client';
 import { useQuery } from '@tanstack/react-query';
 
 export interface DailyLog {
@@ -25,6 +26,7 @@ export interface DailyLog {
  * 
  * Features:
  * - Uses custom day cutoff from user settings
+ * - Sends client timezone for correct day boundary calculation
  * - Cached with localStorage persistence
  * - Supports timestamp-based 304 optimization
  * - Multi-device sync on window focus
@@ -32,11 +34,12 @@ export interface DailyLog {
 export function useDailyLog(initialData?: DailyLog | null) {
     return useQuery({
         queryKey: ['daily-log', 'today'],
-        queryFn: async ({ queryKey }) => {
+        queryFn: async () => {
             // Get cached data for timestamp optimization
             const cached = initialData;
 
-            const headers: HeadersInit = {
+            const headers: Record<string, string> = {
+                ...getTimezoneHeaders(),
                 'Cache-Control': 'no-cache',
             };
 

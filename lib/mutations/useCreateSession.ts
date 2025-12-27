@@ -6,8 +6,10 @@
  * 2. Save session to localStorage
  * 3. Return session data for UI
  * 4. Queue for retry if offline
+ * 5. Sends client timezone for correct workout date
  */
 
+import { getTimezoneHeaders } from '@/lib/api-client';
 import { sessionManager } from '@/lib/offline';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -30,7 +32,10 @@ export function useCreateSession() {
             // Call API immediately
             const response = await fetch('/api/workout-session', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getTimezoneHeaders(),
+                },
                 body: JSON.stringify(variables),
             });
 

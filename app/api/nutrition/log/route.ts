@@ -1,9 +1,9 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getDailyLogKey, getUTCDayBounds } from "@/lib/date-utils";
 import { getUserCutoff } from "@/lib/defaults";
 import { prisma } from "@/lib/prisma";
+import { getClientTimezone, getDayKeyForTimezone, getUTCBoundsForTimezoneDay } from "@/lib/server/timezone";
 
 export async function POST(request: Request) {
     try {
@@ -11,6 +11,9 @@ export async function POST(request: Request) {
         if (!session?.user?.id) {
             return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        // Get client timezone from header
+        const timezone = getClientTimezone(request);
 
         const body = await request.json();
         const { inventoryItemId, qty = 1, mealType } = body;
@@ -45,14 +48,14 @@ export async function POST(request: Request) {
             cholesterol: item.cholesterolPerUnit ? item.cholesterolPerUnit * qty : null,
         };
 
-        // Create nutrition log with snapshot
+        // Create nutrition log with snapshot (timestamp stays as UTC - exact moment)
         const nutritionLog = await prisma.nutritionLog.create({
             data: {
                 userId: session.user.id,
                 inventoryItemId,
                 qty,
                 mealType,
-                timestamp: new Date(),
+                timestamp: new Date(), // UTC - exact moment of logging
                 // Snapshot fields
                 ...snapshot,
             },
@@ -61,10 +64,10 @@ export async function POST(request: Request) {
             },
         });
 
-        // Update daily totals
+        // Update daily totals using CLIENT's timezone
         const dailyTotals = await updateDailyNutritionTotals(
             session.user.id,
-            new Date()
+            timezone
         );
 
         return Response.json({
@@ -90,12 +93,15 @@ export async function POST(request: Request) {
 
 /**
  * Update daily nutrition totals by aggregating ALL logs for the day
- * Returns the calculated totals for client sync
+ * Uses client timezone to determine day boundaries
  */
-async function updateDailyNutritionTotals(userId: string, date: Date) {
+async function updateDailyNutritionTotals(userId: string, timezone: string) {
     try {
         const cutoff = await getUserCutoff(userId);
-        const { start, end } = getUTCDayBounds(date, cutoff.hour, cutoff.minute);
+
+        // Get day boundaries using CLIENT's timezone
+        const { start, end } = getUTCBoundsForTimezoneDay(timezone, cutoff.hour, cutoff.minute);
+        const today = getDayKeyForTimezone(timezone, cutoff.hour, cutoff.minute);
 
         // Fetch all logs for the day
         const logs = await prisma.nutritionLog.findMany({
@@ -122,12 +128,12 @@ async function updateDailyNutritionTotals(userId: string, date: Date) {
             { protein: 0, carbs: 0, fats: 0, fiber: 0, calories: 0, sodium: 0, cholesterol: 0 }
         );
 
-        // Upsert daily log
+        // Upsert daily log using CLIENT's day
         await prisma.dailyLog.upsert({
             where: {
                 userId_date: {
                     userId,
-                    date: getDailyLogKey(date, cutoff.hour, cutoff.minute),
+                    date: today,
                 },
             },
             update: {
@@ -141,7 +147,7 @@ async function updateDailyNutritionTotals(userId: string, date: Date) {
             },
             create: {
                 userId,
-                date: getDailyLogKey(date, cutoff.hour, cutoff.minute),
+                date: today,
                 proteinTotal: totals.protein,
                 carbsTotal: totals.carbs,
                 fatsTotal: totals.fats,

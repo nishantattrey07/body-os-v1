@@ -1,10 +1,13 @@
 import { auth } from "@/lib/auth";
+import { DEFAULTS } from "@/lib/defaults";
 import { prisma } from "@/lib/prisma";
+import { getClientTimezone, getDateMetadataForTimezone } from "@/lib/server/timezone";
 import { NextResponse } from "next/server";
 
 /**
  * POST /api/workout-session
  * Create a new workout session
+ * Uses client's timezone for date metadata (date, dayOfWeek, month, year)
  */
 export async function POST(request: Request) {
     try {
@@ -12,6 +15,9 @@ export async function POST(request: Request) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        // Get client timezone from header
+        const timezone = getClientTimezone(request);
 
         const data = await request.json();
         const {
@@ -42,18 +48,30 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Routine not found" }, { status: 404 });
         }
 
-        const now = new Date();
+        // Get user settings for day cutoff
+        const settings = await prisma.userSettings.findUnique({
+            where: { userId: session.user.id },
+            select: { dayCutoffHour: true, dayCutoffMinute: true },
+        });
+
+        const cutoffHour = settings?.dayCutoffHour ?? DEFAULTS.dayCutoffHour;
+        const cutoffMinute = settings?.dayCutoffMinute ?? DEFAULTS.dayCutoffMinute;
+
+        // Get date metadata using CLIENT's timezone and cutoff
+        const dateMetadata = getDateMetadataForTimezone(timezone, cutoffHour, cutoffMinute);
 
         // Create workout session
         const workoutSession = await prisma.workoutSession.create({
             data: {
                 userId: session.user.id,
                 routineId,
-                date: now,
-                dayOfWeek: now.getDay(),
-                weekOfYear: getWeekOfYear(now),
-                month: now.getMonth() + 1,
-                year: now.getFullYear(),
+                // Use timezone-aware date metadata
+                date: dateMetadata.date,
+                dayOfWeek: dateMetadata.dayOfWeek,
+                weekOfYear: dateMetadata.weekOfYear,
+                month: dateMetadata.month,
+                year: dateMetadata.year,
+                // startedAt stays as UTC (exact moment)
                 preWorkoutEnergy,
                 stressLevel,
                 soreness,
@@ -105,7 +123,7 @@ export async function POST(request: Request) {
 
         // Create warmup logs for this session
         const userId = session.user.id;
-        const warmupLogs = await prisma.warmupLog.createMany({
+        await prisma.warmupLog.createMany({
             data: warmupChecklist.map(item => ({
                 userId,
                 warmupChecklistId: item.id,
@@ -189,13 +207,4 @@ export async function GET() {
             { status: 500 }
         );
     }
-}
-
-// Helper: Get ISO week number
-function getWeekOfYear(date: Date): number {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }

@@ -1,3 +1,4 @@
+import { getTimezoneHeaders } from "@/lib/api-client";
 import type { DailyLog } from "@/lib/queries/useDailyLog";
 import { queryKeys } from "@/lib/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +21,7 @@ interface QuickAddInput {
  * Mutation hook for quick-add nutrition (no inventory item needed)
  * 
  * Use this for one-off foods (random cookie at party, etc.)
+ * Sends client timezone for correct day boundary calculation
  */
 export function useQuickAddNutrition() {
     const queryClient = useQueryClient();
@@ -28,7 +30,10 @@ export function useQuickAddNutrition() {
         mutationFn: async (input: QuickAddInput) => {
             const response = await fetch("/api/nutrition/quick-add", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...getTimezoneHeaders(),
+                },
                 body: JSON.stringify(input),
             });
 
