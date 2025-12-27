@@ -18,6 +18,7 @@ import {
     Timer,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { EditSetModal } from "./EditSetModal";
 import { TimerModal } from "./TimerModal";
 
 interface ExerciseLoggerProps {
@@ -76,6 +77,10 @@ export function ExerciseLogger({
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [exerciseNote, setExerciseNote] = useState("");
   const addNoteMutation = useAddExerciseNote();
+
+  // Edit set state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingSet, setEditingSet] = useState<any | null>(null);
 
   // DERIVE currentSet from completedSets (this fixes superset loop-back!)
   // When you loop back to the same exercise, completedSets updates, so currentSet recalculates
@@ -289,19 +294,35 @@ export function ExerciseLogger({
 
     // Success feedback via UI update only
 
-    // BACKGROUND SYNC: Fire and forget
-    logSetMutation.mutate(setData, {
-      onSuccess: () => {
-        // Remove from pending sets after successful sync
-        const updated = JSON.parse(localStorage.getItem("pendingSets") || "[]")
-          .filter((s: any) => s.id !== pendingSetId);
-        localStorage.setItem("pendingSets", JSON.stringify(updated));
-      },
-      onError: (error) => {
-        console.error("[ExerciseLogger] ❌ Sync failed, will retry:", error);
-        // Data stays in localStorage for retry by sync queue
-      },
-    });
+    // Direct API call to log set AND get ID immediately
+    fetch('/api/workout/sets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(setData),
+    })
+      .then(res => res.json())
+      .then(response => {
+        if (response?.setLog?.id) {
+          console.log('[ExerciseLogger] ✅ Set logged with ID:', response.setLog.id);
+          // Replace the optimistic set with one that has the real ID
+          setCompletedSets((prev) =>
+            prev.map((set, index) =>
+              index === prev.length - 1 && !set.id
+                ? { ...set, id: response.setLog.id }
+                : set
+            )
+          );
+
+          // Remove from localStorage pending sets after successful sync
+          const updated = JSON.parse(localStorage.getItem("pendingSets") || "[]")
+            .filter((s: any) => s.id !== pendingSetId);
+          localStorage.setItem("pendingSets", JSON.stringify(updated));
+        }
+      })
+      .catch(error => {
+        console.error('[ExerciseLogger] ❌ Failed to log set:', error);
+        // Keep in localStorage for manual retry or next session load
+      });
   };
 
   const handleSkipRest = () => {
@@ -400,6 +421,7 @@ export function ExerciseLogger({
             const setNum = i + 1;
             const isCompleted = setNum < currentSet;
             const isCurrent = setNum === currentSet;
+            const completedSet = completedSets.find(s => s.setNumber === setNum);
 
             return (
               <motion.div
@@ -410,6 +432,15 @@ export function ExerciseLogger({
                 transition={{ delay: i * 0.05 }}
               >
                 <motion.div
+                  onClick={() => {
+                    if (isCompleted && completedSet?.id) {
+                      console.log('[ExerciseLogger] Opening edit modal for set:', completedSet);
+                      setEditingSet(completedSet);
+                      setShowEditModal(true);
+                    } else {
+                      console.log('[ExerciseLogger] Cannot edit - isCompleted:', isCompleted, 'hasId:', !!completedSet?.id, 'set:', completedSet);
+                    }
+                  }}
                   animate={{
                     backgroundColor: isCompleted
                       ? "#10b981"
@@ -417,12 +448,13 @@ export function ExerciseLogger({
                       ? "#f97316"
                       : "#e5e7eb",
                   }}
+                  whileTap={isCompleted ? { scale: 0.95 } : {}}
                   transition={{ type: "spring", stiffness: 300 }}
                   className={`
-                    h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm
+                    h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm relative
                     ${
                       isCompleted
-                        ? "text-white"
+                        ? "text-white cursor-pointer"
                         : isCurrent
                         ? "text-white ring-4 ring-orange-200"
                         : "text-zinc-400"
@@ -430,7 +462,15 @@ export function ExerciseLogger({
                   `}
                 >
                   {isCompleted ? (
-                    <Check size={18} strokeWidth={3} />
+                    <>
+                      <Check size={18} strokeWidth={3} />
+                      {/* Pulse animation to show it's tappable */}
+                      <motion.div
+                        className="absolute inset-0 rounded-full bg-white"
+                        animate={{ opacity: [0.1, 0.3, 0.1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      />
+                    </>
                   ) : (
                     <span className="font-heading">{setNum}</span>
                   )}
@@ -847,6 +887,20 @@ export function ExerciseLogger({
         onComplete={handleTimerComplete}
         onCancel={() => setShowTimer(false)}
       />
+
+      {/* Edit Set Modal */}
+      {editingSet && (
+        <EditSetModal
+          isOpen={showEditModal}
+          setData={editingSet}
+          exerciseName={exercise.name}
+          isTimeBased={isTimeBased}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingSet(null);
+          }}
+        />
+      )}
     </div>
   );
 }
